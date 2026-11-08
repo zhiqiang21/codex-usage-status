@@ -8,7 +8,7 @@ A native macOS menu bar utility that reads data from the local `codex app-server
 - Time until each window resets
 - Available reset credits, shown only when the count is greater than zero
 
-The app is read-only. It does not consume reset credits or directly read or record Codex authentication files.
+Codex account access is read-only. The app does not consume reset credits or directly read or record Codex authentication files. It also measures local developer storage and offers single-item and batch permanent cleanup with confirmation of the exact item list.
 
 ## Requirements
 
@@ -115,6 +115,45 @@ System Settings → General → Login Items & Extensions
 
 Click the usage display in the menu bar, then click **Quit** at the bottom of the popover.
 
+### Developer storage and batch cleanup
+
+The **Developer storage** section measures these directories independently of Codex login or usage requests:
+
+```text
+~/Library/Developer/Xcode/iOS DeviceSupport
+~/Library/Developer/CoreSimulator/Devices
+/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime
+~/.codex
+```
+
+Expand a directory to see versions or devices sorted by disk usage, with full paths and modification times. Simulator rows also show the device name, OS version, UDID, and current state. **Show in Finder** opens the item for further inspection. Unrecognized directories and auxiliary files remain visible as read-only items. The popover scrolls to fit the screen.
+
+**iOS simulator runtimes** measure only the specified AssetsV2 directory without adding mounted-volume capacity. Asset metadata supplies version/build labels. The app uses `simctl runtime list --json` to match each package to exactly one system identifier. **Uninstall runtime** is enabled only for a ready, system-deletable runtime whose associated devices are known to be idle. Each runtime requires its own confirmation, listing affected devices and explaining that the runtime must be installed again to use them. Filesystem identity and live state are rechecked before `simctl runtime delete <identifier>`; the app never raw-deletes AssetsV2 data, explicitly shuts down a device, or automatically retries. If tools, permissions, or mapping checks fail, **Manage in Xcode** opens Xcode; continue to Settings → Components. Remaining assets are reported without falling back to filesystem deletion.
+
+**Codex data** shows archived sessions (`archived_sessions`), generated images (`generated_images`), sessions (`sessions`), and other child sizes. Only file metadata is measured; authentication, session, database, and image contents are not read. **View cleanup candidates** on `cache` or `log` loads individual eligible files on demand, with checkboxes, Select all, and Deselect all:
+
+- Cache cleanup includes only immediate regular `.json` files in `cache/codex_apps_server_info`, `cache/codex_apps_tools`, and `cache/remote_plugin_catalog`.
+- Log cleanup includes only regular `.log` files, numbered rotations, and their `.gz` forms under `log`, modified more than seven days ago.
+- Archived sessions, generated images, SQLite/WAL/SHM, authentication, settings, plugins, worktrees, and unknown caches remain protected. Parent directories are retained.
+
+File cleanup confirms exact paths, sizes, and modification times. Caches may regenerate; deleted logs cannot be used for historical troubleshooting. Identity and exact-path `lsof` checks run immediately before deletion. Changes, occupancy, symlinks, or incomplete checks stop that item. Refreshing Codex measurements invalidates loaded candidates and their selection; reload them to continue.
+
+Scanning starts when the popover first opens. Reopening refreshes results older than five minutes; each directory also has a manual refresh button. Directory walks run serially in the background; routine Runtime/Codex monitoring does not retain recursive identity manifests; evidence is prepared only for a requested runtime uninstall or candidate file list, reducing memory usage. Storage does not follow the Codex refresh schedule. Sizes use MiB/GiB. Permission failures are reported as incomplete scans rather than zero usage, and retained results from failed refreshes are marked stale.
+
+- **Permanently delete** removes only the selected DeviceSupport version. Debugging a matching physical device may later require regenerating or downloading support files.
+- **Delete device** uses `simctl delete <UDID>` for exactly one simulator, permanently removing its installed apps and local data. OS runtimes are unaffected. Recreate the device if needed.
+
+Expand a directory to select multiple eligible items using checkboxes. Each group offers **Select all** and **Deselect all**; selection skips items that cannot be cleaned. DeviceSupport, simulator devices, and Codex candidate files support batch selection; runtime uninstalls are individual. **Delete selected** opens a scrollable confirmation list of all exact targets; canceling preserves the selection. Refreshing automatically deselects changed or missing items. Individual cleanup buttons remain available.
+
+Shutdown simulators and incomplete `Creating` devices explicitly reported as unavailable by `simctl` support both individual and batch deletion. Available devices still being created, booting, running, shutting down, or lacking verified live identity remain ineligible.
+
+Every action requires confirmation of the exact target list. DeviceSupport and simulator-device directory cleanup revalidates paths, directory and descendant identities, and device state, then checks descendant occupancy with `lsof +D`. Codex file cleanup checks the exact file path; runtime uninstalls revalidate the system management identifier and associated device state. Changed targets, running or unknown device states, symbolic-link targets, mount points, and incomplete occupancy checks block cleanup. The app never automatically shuts down a device, retries deletion, or falls back to raw simulator-directory deletion.
+
+Live simulator status and deletion require Xcode and a correctly selected developer directory. Disk measurements remain available when tools or CoreSimulator services are unavailable, but device deletion is disabled.
+
+Batch cleanup runs serially in the background with progress, avoiding competing disk operations. Each affected parent directory is scanned only once before and once after the batch, and available space is measured once per shared volume. During execution, only the current target is revalidated; the list updates when the batch finishes. Failed items are not retried; other confirmed targets proceed independently, and every result is reported.
+
+After cleanup, the app separately reports measured directory usage reduction and the change in available volume space. Closing the popover or expanding/collapsing either directory clears cleanup result messages. In-flight cleanup continues and updates storage measurements, but dismissed results do not reappear. APFS shared blocks, snapshots, and other processes can affect those numbers; measured usage is not guaranteed reclaimable space. Keep any device data you still need.
 
 ## Troubleshooting
 

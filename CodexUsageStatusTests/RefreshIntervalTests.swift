@@ -21,6 +21,7 @@ final class RefreshIntervalTests: XCTestCase {
                 settings.setMenuBarDisplayMode(mode)
                 let controller = NSHostingController(rootView: UsagePopoverView(
                     store: UsageStore(settings: settings, initialState: state),
+                    storageStore: DeveloperStorageStore(service: PopoverStorageProvider()),
                     settings: settings,
                     launchAtLoginController: LaunchAtLoginController()
                 ))
@@ -203,6 +204,7 @@ final class RefreshIntervalTests: XCTestCase {
                     initialState: .loaded(snapshot: snapshot, isStale: false, message: nil),
                     now: { now }
                 ),
+                storageStore: DeveloperStorageStore(service: PopoverStorageProvider()),
                 settings: settings,
                 launchAtLoginController: LaunchAtLoginController()
             )
@@ -594,6 +596,19 @@ final class RefreshIntervalTests: XCTestCase {
                 resetCreditText: nil
             )
         )
+    }
+}
+
+private struct PopoverStorageProvider: DeveloperStorageProviding {
+    func scan(_ kind: DeveloperStorageKind) async -> DeveloperStorageSnapshot {
+        DeveloperStorageSnapshot(
+            kind: kind, path: "/missing", entries: [], allocatedBytes: nil,
+            scannedAt: Date(), issues: [], isMissing: true, notice: nil
+        )
+    }
+
+    func clean(_ entry: DeveloperStorageEntry) async throws -> StorageCleanupResult {
+        throw DeveloperStorageError.unsafeTarget
     }
 }
 

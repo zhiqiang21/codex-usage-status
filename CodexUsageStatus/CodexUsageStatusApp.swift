@@ -5,6 +5,7 @@ import SwiftUI
 struct CodexUsageStatusApp: App {
     @StateObject private var settings: UserSettings
     @StateObject private var usageStore: UsageStore
+    @StateObject private var storageStore = DeveloperStorageStore()
     @StateObject private var launchAtLoginController: LaunchAtLoginController
 
     init() {
@@ -22,6 +23,7 @@ struct CodexUsageStatusApp: App {
         MenuBarExtra {
             UsagePopoverView(
                 store: usageStore,
+                storageStore: storageStore,
                 settings: settings,
                 launchAtLoginController: launchAtLoginController
             )

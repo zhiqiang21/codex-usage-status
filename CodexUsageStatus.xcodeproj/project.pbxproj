@@ -21,6 +21,13 @@
 		10000000000000000000000C /* RefreshIntervalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20000000000000000000000C /* RefreshIntervalTests.swift */; };
 		10000000000000000000000D /* JSONLineFramerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20000000000000000000000D /* JSONLineFramerTests.swift */; };
 		10000000000000000000000E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000010 /* Assets.xcassets */; };
+		100000000000000000000011 /* DeveloperStorageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000011 /* DeveloperStorageModels.swift */; };
+		100000000000000000000012 /* StorageCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000012 /* StorageCommandRunner.swift */; };
+		100000000000000000000013 /* DeveloperStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000013 /* DeveloperStorageService.swift */; };
+		100000000000000000000014 /* DeveloperStorageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000014 /* DeveloperStorageStore.swift */; };
+		100000000000000000000015 /* DeveloperStorageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000015 /* DeveloperStorageViews.swift */; };
+		100000000000000000000016 /* DeveloperStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000016 /* DeveloperStorageTests.swift */; };
+		100000000000000000000017 /* StorageCleanupSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000017 /* StorageCleanupSafetyTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,6 +57,13 @@
 		20000000000000000000000E /* CodexUsageStatus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodexUsageStatus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		20000000000000000000000F /* CodexUsageStatusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodexUsageStatusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		200000000000000000000010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		200000000000000000000011 /* DeveloperStorageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperStorageModels.swift; sourceTree = "<group>"; };
+		200000000000000000000012 /* StorageCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageCommandRunner.swift; sourceTree = "<group>"; };
+		200000000000000000000013 /* DeveloperStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperStorageService.swift; sourceTree = "<group>"; };
+		200000000000000000000014 /* DeveloperStorageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperStorageStore.swift; sourceTree = "<group>"; };
+		200000000000000000000015 /* DeveloperStorageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperStorageViews.swift; sourceTree = "<group>"; };
+		200000000000000000000016 /* DeveloperStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperStorageTests.swift; sourceTree = "<group>"; };
+		200000000000000000000017 /* StorageCleanupSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageCleanupSafetyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,6 +105,11 @@
 				200000000000000000000007 /* UsageStore.swift */,
 				200000000000000000000008 /* LaunchAtLoginController.swift */,
 				200000000000000000000009 /* UsageViews.swift */,
+				200000000000000000000015 /* DeveloperStorageViews.swift */,
+				200000000000000000000014 /* DeveloperStorageStore.swift */,
+				200000000000000000000013 /* DeveloperStorageService.swift */,
+				200000000000000000000012 /* StorageCommandRunner.swift */,
+				200000000000000000000011 /* DeveloperStorageModels.swift */,
 				200000000000000000000010 /* Assets.xcassets */,
 			);
 			path = CodexUsageStatus;
@@ -103,6 +122,8 @@
 				20000000000000000000000B /* ProtocolDecodingTests.swift */,
 				20000000000000000000000C /* RefreshIntervalTests.swift */,
 				20000000000000000000000D /* JSONLineFramerTests.swift */,
+				200000000000000000000016 /* DeveloperStorageTests.swift */,
+				200000000000000000000017 /* StorageCleanupSafetyTests.swift */,
 			);
 			path = CodexUsageStatusTests;
 			sourceTree = "<group>";
@@ -224,6 +245,11 @@
 				100000000000000000000007 /* UsageStore.swift in Sources */,
 				100000000000000000000008 /* LaunchAtLoginController.swift in Sources */,
 				100000000000000000000009 /* UsageViews.swift in Sources */,
+				100000000000000000000015 /* DeveloperStorageViews.swift in Sources */,
+				100000000000000000000014 /* DeveloperStorageStore.swift in Sources */,
+				100000000000000000000013 /* DeveloperStorageService.swift in Sources */,
+				100000000000000000000012 /* StorageCommandRunner.swift in Sources */,
+				100000000000000000000011 /* DeveloperStorageModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -235,6 +261,8 @@
 				10000000000000000000000B /* ProtocolDecodingTests.swift in Sources */,
 				10000000000000000000000C /* RefreshIntervalTests.swift in Sources */,
 				10000000000000000000000D /* JSONLineFramerTests.swift in Sources */,
+				100000000000000000000016 /* DeveloperStorageTests.swift in Sources */,
+				100000000000000000000017 /* StorageCleanupSafetyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -173,9 +173,11 @@ struct UsageMenuBarGraphic: View {
 
 struct UsagePopoverView: View {
     @ObservedObject var store: UsageStore
+    @ObservedObject var storageStore: DeveloperStorageStore
     @ObservedObject var settings: UserSettings
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
 
+    @State private var isStorageExpanded = false
     @State private var showsConnectionSettings = false
 
     private let windowColumnWidth: CGFloat = 78
@@ -197,6 +199,8 @@ struct UsagePopoverView: View {
                 }
 
                 Divider()
+                storageSection
+                Divider()
                 menuBarSettings
                 refreshSettings
                 appSettings
@@ -206,12 +210,19 @@ struct UsagePopoverView: View {
             .padding(16)
         }
         // A scroll viewport needs an explicit height when MenuBarExtra measures
-        // its window. Expanded connection settings scroll within it.
+        // its window. Expanded storage and connection settings scroll within it.
         .frame(width: 340, height: min(460, (NSScreen.main?.visibleFrame.height ?? 800) - 80))
         .tint(.indigo)
+        .background(UsagePopoverDismissObserver {
+            storageStore.dismissOperationResult()
+        })
         .task {
             store.refreshIfNeeded()
+            storageStore.refreshIfNeeded()
             launchAtLoginController.refreshStatus()
+        }
+        .onDisappear {
+            storageStore.dismissOperationResult()
         }
     }
 
@@ -325,6 +336,34 @@ struct UsagePopoverView: View {
         }
         .frame(minHeight: 50)
         .help(window == nil ? "Codex 未返回\(title)用量窗口" : "\(title)用量")
+    }
+
+    private var storageSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                isStorageExpanded.toggle()
+                storageStore.dismissOperationResult()
+            } label: {
+                HStack {
+                    Label("开发存储", systemImage: "internaldrive")
+                    Spacer()
+                    Image(systemName: isStorageExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 13))
+                .frame(minHeight: 36)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isStorageExpanded ? "折叠开发存储" : "展开开发存储")
+
+            if isStorageExpanded {
+                DeveloperStorageView(store: storageStore, showsHeader: false)
+                    .padding(.top, 4)
+                    .padding(.bottom, 12)
+            }
+        }
     }
 
     private var menuBarSettings: some View {
@@ -558,6 +597,55 @@ struct UsagePopoverView: View {
     }
 }
 
+// A window-style MenuBarExtra can retain its content while hiding the window.
+// Observe only this view's host window, rather than unrelated app windows.
+struct UsagePopoverDismissObserver: NSViewRepresentable {
+    let onDismiss: () -> Void
+
+    func makeNSView(context: Context) -> UsagePopoverDismissView {
+        let view = UsagePopoverDismissView()
+        view.onDismiss = onDismiss
+        return view
+    }
+
+    func updateNSView(_ nsView: UsagePopoverDismissView, context: Context) {
+        nsView.onDismiss = onDismiss
+    }
+
+    static func dismantleNSView(_ nsView: UsagePopoverDismissView, coordinator: ()) {
+        nsView.stopObserving()
+        nsView.onDismiss = nil
+    }
+}
+
+final class UsagePopoverDismissView: NSView {
+    var onDismiss: (() -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        stopObserving()
+        guard let window else { return }
+        for name in [NSWindow.didResignKeyNotification, NSWindow.willCloseNotification,
+                     NSWindow.didChangeOcclusionStateNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowChanged(_:)), name: name, object: window)
+        }
+    }
+
+    func stopObserving() {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func windowChanged(_ notification: Notification) {
+        guard let window else { return }
+        if notification.name == NSWindow.didChangeOcclusionStateNotification {
+            guard !window.isVisible else { return }
+        } else if notification.name == NSWindow.didResignKeyNotification, window.attachedSheet != nil {
+            return
+        }
+        onDismiss?()
+    }
+}
+
 #if DEBUG
 #Preview("Loaded") {
     UsagePopoverView(
@@ -568,6 +656,7 @@ struct UsagePopoverView: View {
                 message: nil
             )
         ),
+        storageStore: DeveloperStorageStore(),
         settings: UserSettings(),
         launchAtLoginController: LaunchAtLoginController()
     )
@@ -578,6 +667,7 @@ struct UsagePopoverView: View {
         store: .preview(
             state: .failed(message: "未找到 Codex CLI")
         ),
+        storageStore: DeveloperStorageStore(),
         settings: UserSettings(),
         launchAtLoginController: LaunchAtLoginController()
     )
