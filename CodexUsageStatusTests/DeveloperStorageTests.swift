@@ -873,7 +873,7 @@ final class DeveloperStorageTests: XCTestCase {
             return StorageCommandResult(status: 0, output: data, error: Data())
         }
         let service = DeveloperStorageService(home: home, commands: commands)
-        let store = DeveloperStorageStore(service: service)
+        let store = DeveloperStorageStore(service: service, historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.simulators)
         for _ in 0..<200 where store.isBusy { try await Task.sleep(for: .milliseconds(5)) }
         XCTAssertFalse(store.isBusy)
@@ -1074,7 +1074,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
     func testDuplicateRefreshesAreCoalescedAndFailedRefreshRetainsStaleResult() async throws {
         let provider = StorageDelayedProvider()
         let date = Date()
-        let store = DeveloperStorageStore(service: provider, now: { date })
+        let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil), now: { date })
         store.refresh(.deviceSupport)
         store.refresh(.deviceSupport)
         try await waitUntil { await provider.scanCount == 1 }
@@ -1089,13 +1089,14 @@ final class DeveloperStorageStoreTests: XCTestCase {
         XCTAssertEqual(store.snapshots[.deviceSupport]?.allocatedBytes, 100)
         XCTAssertTrue(store.isStale(.deviceSupport))
         XCTAssertEqual(store.refreshErrors[.deviceSupport], "denied")
+        XCTAssertEqual(store.trendSnapshots[.deviceSupport]?.series(for: .day).points.map(\.bytes), [100])
     }
 
     func testPermissionGuidanceTracksLatestFailureEvenWhenDisplayingRetainedData() async throws {
         let date = Date()
         let readable = snapshot(date: date)
         let provider = StorageControlledProvider([.deviceSupport: readable])
-        let store = DeveloperStorageStore(service: provider)
+        let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.deviceSupport)
         try await waitUntil { !store.isBusy }
         let denied = DeveloperStorageSnapshot(kind: .deviceSupport, path: "/test", entries: [], allocatedBytes: nil,
@@ -1123,7 +1124,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
         let date = Date()
         let provider = StorageControlledProvider([.deviceSupport: snapshot(date: date)])
         var now = date
-        let store = DeveloperStorageStore(service: provider, now: { now })
+        let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil), now: { now })
         store.refreshIfNeeded()
         try await waitUntil { !store.isBusy }
         let initial = await provider.scanCount
@@ -1152,7 +1153,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
     func testConfirmationSurvivesAlertDismissalAndCleanupIsSerialized() async throws {
         let measured = try await cleanupFixture()
         let provider = StorageControlledProvider([.deviceSupport: measured])
-        let store = DeveloperStorageStore(service: provider)
+        let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.deviceSupport)
         try await waitUntil { !store.isBusy }
         let entry = try XCTUnwrap(store.snapshots[.deviceSupport]?.entries.first)
@@ -1174,6 +1175,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
             directoryReduction: 100, volumeAvailableChange: 80))
         try await waitUntil { !store.isBusy }
         XCTAssertEqual(store.snapshots[.deviceSupport]?.allocatedBytes, 0)
+        XCTAssertEqual(store.trendSnapshots[.deviceSupport]?.series(for: .day).points.last?.bytes, 0)
         XCTAssertFalse(store.operationFailed)
         XCTAssertNotNil(store.operationMessage)
     }
@@ -1181,7 +1183,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
     func testFailedCleanupRefreshesAndNeverAutomaticallyRetries() async throws {
         let measured = try await cleanupFixture()
         let provider = StorageControlledProvider([.deviceSupport: measured])
-        let store = DeveloperStorageStore(service: provider)
+        let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.deviceSupport)
         try await waitUntil { !store.isBusy }
         let entry = try XCTUnwrap(store.snapshots[.deviceSupport]?.entries.first)
@@ -1204,7 +1206,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
     func testCheckboxSelectionSelectAllAndDeselectAllExcludeReadOnlyItems() async throws {
         let measured = try await cleanupFixture(names: ["17.5 (21F79)", "18.0 (22A1)", "notes"])
         let provider = StorageControlledProvider([.deviceSupport: measured])
-        let store = DeveloperStorageStore(service: provider)
+        let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.deviceSupport)
         try await waitUntil { !store.isBusy }
         let entries = try XCTUnwrap(store.snapshots[.deviceSupport]?.entries)
@@ -1233,7 +1235,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
     func testRefreshRevokesChangedSelectionAndConfirmationDoesNotWiden() async throws {
         let measured = try await cleanupFixture(names: ["17.5 (21F79)", "18.0 (22A1)"])
         let provider = StorageControlledProvider([.deviceSupport: measured])
-        let store = DeveloperStorageStore(service: provider)
+        let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.deviceSupport)
         try await waitUntil { !store.isBusy }
         let entry = try XCTUnwrap(measured.entries.first)
@@ -1258,7 +1260,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
     func testBatchUsesOneConfirmationAndKeepsProgressAndCleanupSerial() async throws {
         let measured = try await cleanupFixture(names: ["17.5 (21F79)", "18.0 (22A1)"])
         let provider = StorageControlledProvider([.deviceSupport: measured])
-        let store = DeveloperStorageStore(service: provider)
+        let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.deviceSupport)
         try await waitUntil { !store.isBusy }
         store.selectAll(.deviceSupport)
@@ -1288,7 +1290,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
         for fails in [false, true] {
             let measured = try await cleanupFixture()
             let provider = StorageControlledProvider([.deviceSupport: measured])
-            let store = DeveloperStorageStore(service: provider)
+            let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil))
             store.refresh(.deviceSupport)
             try await waitUntil { !store.isBusy }
             let entry = try XCTUnwrap(measured.entries.first)
@@ -1316,7 +1318,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
         for fails in [false, true] {
             let measured = try await cleanupFixture()
             let provider = StorageControlledProvider([.deviceSupport: measured])
-            let store = DeveloperStorageStore(service: provider)
+            let store = DeveloperStorageStore(service: provider, historyRepository: StorageHistoryRepository(fileURL: nil))
             store.refresh(.deviceSupport)
             try await waitUntil { !store.isBusy }
             let entry = try XCTUnwrap(measured.entries.first)

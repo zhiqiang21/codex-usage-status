@@ -21,7 +21,7 @@ final class RefreshIntervalTests: XCTestCase {
                 settings.setMenuBarDisplayMode(mode)
                 let controller = NSHostingController(rootView: UsagePopoverView(
                     store: UsageStore(settings: settings, initialState: state),
-                    storageStore: DeveloperStorageStore(service: PopoverStorageProvider()),
+                    storageStore: DeveloperStorageStore(service: PopoverStorageProvider(), historyRepository: StorageHistoryRepository(fileURL: nil)),
                     settings: settings,
                     systemMetricsStore: SystemMetricsStore(settings: settings),
                     launchAtLoginController: LaunchAtLoginController()
@@ -205,7 +205,7 @@ final class RefreshIntervalTests: XCTestCase {
                     initialState: .loaded(snapshot: snapshot, isStale: false, message: nil),
                     now: { now }
                 ),
-                storageStore: DeveloperStorageStore(service: PopoverStorageProvider()),
+                storageStore: DeveloperStorageStore(service: PopoverStorageProvider(), historyRepository: StorageHistoryRepository(fileURL: nil)),
                 settings: settings,
                 systemMetricsStore: SystemMetricsStore(settings: settings),
                 launchAtLoginController: LaunchAtLoginController()

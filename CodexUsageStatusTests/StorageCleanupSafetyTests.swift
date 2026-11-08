@@ -293,7 +293,7 @@ final class StorageCleanupSafetyTests: XCTestCase {
     func testStoreLoadsCodexCandidatesSelectsFilesAndInvalidatesThemAfterRefresh() async throws {
         let home = try temporaryHome()
         _ = try codexFixture(home)
-        let store = DeveloperStorageStore(service: codexService(home))
+        let store = DeveloperStorageStore(service: codexService(home), historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.codexData)
         try await waitUntil { !store.isBusy }
         let parent = try XCTUnwrap(store.snapshots[.codexData]?.entries.first { $0.name == "cache" })
@@ -316,7 +316,7 @@ final class StorageCleanupSafetyTests: XCTestCase {
         let home = try temporaryHome()
         let asset = try asset(home)
         let (service, _) = runtimeService(home, asset: asset, catalog: try catalog(asset), devices: try devices())
-        let store = DeveloperStorageStore(service: service)
+        let store = DeveloperStorageStore(service: service, historyRepository: StorageHistoryRepository(fileURL: nil))
         store.refresh(.simulatorRuntimes)
         try await waitUntil { !store.isBusy }
         let entry = try XCTUnwrap(store.snapshots[.simulatorRuntimes]?.entries.first)

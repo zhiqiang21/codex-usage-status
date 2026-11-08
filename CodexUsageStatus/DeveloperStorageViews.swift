@@ -14,6 +14,7 @@ struct DeveloperStorageView: View {
                     .font(.subheadline.weight(.medium))
             }
             if !store.permissionDeniedKinds.isEmpty { diskAccessGuidance }
+            if let historyWarning = store.historyWarning { warning(historyWarning) }
             ForEach(DeveloperStorageKind.allCases) { kind in
                 directory(kind)
             }
@@ -188,6 +189,10 @@ struct DeveloperStorageView: View {
             } else if store.refreshing.contains(kind) {
                 Text("正在统计磁盘占用…")
                     .font(.caption2).foregroundStyle(.secondary)
+            }
+            if expanded.contains(kind) {
+                StorageTrendView(kind: kind, snapshot: store.trendSnapshots[kind] ?? .empty)
+                    .equatable()
             }
         }
         .padding(8)

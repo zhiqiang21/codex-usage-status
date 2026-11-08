@@ -18,8 +18,12 @@ final class DeveloperStorageStore: ObservableObject {
     @Published private(set) var preparingEntryID: String?
     @Published private(set) var cleanupCandidates: [String: [DeveloperStorageEntry]] = [:]
     @Published private(set) var candidateErrors: [String: String] = [:]
+    @Published private(set) var trendSnapshots: [DeveloperStorageKind: StorageTrendSnapshot] = [:]
+    @Published private(set) var historyWarning: String?
 
     private let service: any DeveloperStorageProviding
+    private let historyRepository: StorageHistoryRepository
+    private var historyRevision = -1
     private let now: () -> Date
     private var refreshTasks: [DeveloperStorageKind: Task<Void, Never>] = [:]
     private var cleanupTask: Task<Void, Never>?
@@ -35,9 +39,16 @@ final class DeveloperStorageStore: ObservableObject {
         }
     }
 
-    init(service: any DeveloperStorageProviding = DeveloperStorageService(), now: @escaping () -> Date = Date.init) {
+    init(service: any DeveloperStorageProviding = DeveloperStorageService(),
+         historyRepository: StorageHistoryRepository = StorageHistoryRepository(),
+         now: @escaping () -> Date = Date.init) {
         self.service = service
+        self.historyRepository = historyRepository
         self.now = now
+        Task { [weak self] in
+            let state = await historyRepository.load(now: now())
+            self?.acceptHistory(state)
+        }
     }
 
     func refreshIfNeeded() {
@@ -58,7 +69,7 @@ final class DeveloperStorageStore: ObservableObject {
         refreshTasks[kind] = Task { [weak self, service] in
             let snapshot = await service.scan(kind)
             guard let self else { return }
-            accept(snapshot)
+            await accept(snapshot)
             refreshing.remove(kind)
             refreshTasks[kind] = nil
         }
@@ -68,7 +79,7 @@ final class DeveloperStorageStore: ObservableObject {
         for kind in permissionDeniedKinds { refresh(kind) }
     }
 
-    private func accept(_ snapshot: DeveloperStorageSnapshot) {
+    private func accept(_ snapshot: DeveloperStorageSnapshot) async {
         let kind = snapshot.kind
         // Keep current permission failures even when displaying a retained,
         // previously readable snapshot. Never persist a guessed authorization.
@@ -91,6 +102,16 @@ final class DeveloperStorageStore: ObservableObject {
             snapshots[kind] = snapshot
             refreshErrors[kind] = nil
         }
+        let history = await historyRepository.record(snapshot, now: now())
+        acceptHistory(history)
+    }
+
+    private func acceptHistory(_ state: StorageHistoryState) {
+        // Independent category scans can resume on the MainActor out of order.
+        guard state.revision > historyRevision else { return }
+        historyRevision = state.revision
+        if trendSnapshots != state.trends { trendSnapshots = state.trends }
+        if historyWarning != state.warning { historyWarning = state.warning }
     }
 
     func canClean(_ entry: DeveloperStorageEntry) -> Bool {
@@ -229,7 +250,7 @@ final class DeveloperStorageStore: ObservableObject {
                 await self?.updateCleanupProgress(progress)
             }
             guard let self else { return }
-            for snapshot in result.snapshots { accept(snapshot) }
+            for snapshot in result.snapshots { await accept(snapshot) }
             if resultGeneration == operationResultGeneration {
                 operationMessage = result.message
                 operationFailed = result.hasFailures
