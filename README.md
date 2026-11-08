@@ -282,7 +282,18 @@ Run:
 ./scripts/package-release.sh
 ```
 
-The script creates a Release build and writes these files to `dist/`:
+With no arguments, the script builds a Universal package for both architectures. To build separately:
+
+```bash
+./scripts/package-release.sh --arch arm64    # Apple silicon
+./scripts/package-release.sh --arch x86_64   # Intel
+./scripts/package-release.sh --arch universal
+./scripts/package-release.sh --help
+```
+
+Archives use `macos-arm64.zip`, `macos-x86_64.zip`, or `macos-universal.zip` (with matching `.sha256` files) so the three variants can coexist. Single-architecture apps are placed in `dist/arm64/CodexUsageStatus.app` and `dist/x86_64/CodexUsageStatus.app`; the Universal app remains at `dist/CodexUsageStatus.app`. Rebuilding the same variant replaces its existing outputs. Signing and notarization environment variables work with all three variants.
+
+The default Universal build writes these files to `dist/`:
 
 ```text
 CodexUsageStatus.app
@@ -290,7 +301,7 @@ CodexUsageStatus-0.1.0-macos-universal.zip
 CodexUsageStatus-0.1.0-macos-universal.zip.sha256
 ```
 
-The ZIP supports both Apple silicon and Intel Macs. Without a distribution certificate, the script uses an ad-hoc signature. This is suitable for local testing or trusted distribution, but macOS will show a security warning on first launch.
+The default Universal ZIP supports both Apple silicon and Intel Macs. Without a distribution certificate, the script uses an ad-hoc signature. This is suitable for local testing or trusted distribution, but macOS will show a security warning on first launch.
 
 For public distribution, sign with a Developer ID Application certificate and submit the app to Apple for notarization:
 

@@ -282,7 +282,18 @@ xcodebuild \
 ./scripts/package-release.sh
 ```
 
-脚本会执行 Release 构建，并在 `dist/` 中生成：
+不传参数时默认构建同时支持两种架构的 Universal 包。也可以分别构建：
+
+```bash
+./scripts/package-release.sh --arch arm64    # Apple 芯片
+./scripts/package-release.sh --arch x86_64   # Intel
+./scripts/package-release.sh --arch universal
+./scripts/package-release.sh --help
+```
+
+压缩包分别使用 `macos-arm64.zip`、`macos-x86_64.zip`、`macos-universal.zip` 后缀，并生成对应 `.sha256` 文件，三个版本可同时保留。单架构应用分别放在 `dist/arm64/CodexUsageStatus.app`、`dist/x86_64/CodexUsageStatus.app`，Universal 应用仍放在 `dist/CodexUsageStatus.app`。重复构建同一版本会覆盖其已有产物。签名和公证环境变量对三种架构均适用。
+
+默认 Universal 构建会在 `dist/` 中生成：
 
 ```text
 CodexUsageStatus.app
@@ -290,7 +301,7 @@ CodexUsageStatus-0.1.0-macos-universal.zip
 CodexUsageStatus-0.1.0-macos-universal.zip.sha256
 ```
 
-ZIP 同时包含 Apple 芯片和 Intel 架构。未配置发布证书时，脚本使用 ad-hoc 签名，适合本地测试或可信范围内分发，但用户首次打开时会遇到 macOS 安全提示。
+默认 Universal ZIP 同时包含 Apple 芯片和 Intel 架构。未配置发布证书时，脚本使用 ad-hoc 签名，适合本地测试或可信范围内分发，但用户首次打开时会遇到 macOS 安全提示。
 
 公开分发时，应使用 Apple Developer Program 提供的 Developer ID Application 证书签名并完成公证：
 
