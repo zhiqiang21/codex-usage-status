@@ -9,7 +9,8 @@ final class StorageCleanupSafetyTests: XCTestCase {
     private let clock = Date(timeIntervalSince1970: 2_000_000_000)
 
     private func temporaryHome() throws -> URL {
-        let home = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+        let temporaryRoot = try XCTUnwrap(StorageCanonicalPath.resolve(FileManager.default.temporaryDirectory))
+        let home = URL(fileURLWithPath: temporaryRoot)
             .appendingPathComponent("StorageCleanupSafety-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: home) }

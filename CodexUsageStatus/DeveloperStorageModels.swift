@@ -1,10 +1,39 @@
+import Darwin
 import Foundation
+
+// Foundation path standardization may rewrite /private/tmp to /tmp even
+// though /tmp is a symlink. Safety checks need the physical, POSIX path.
+enum StorageCanonicalPath {
+    static func resolve(_ url: URL) -> String? {
+        url.path.withCString { path in
+            guard let resolved = realpath(path, nil) else { return nil }
+            defer { free(resolved) }
+            return String(cString: resolved)
+        }
+    }
+}
+
+enum StorageFileAccess {
+    static func isPermissionDenied(_ error: Error) -> Bool {
+        let error = error as NSError
+        if error.domain == NSPOSIXErrorDomain, [Int(EACCES), Int(EPERM)].contains(error.code) { return true }
+        if error.domain == NSCocoaErrorDomain,
+           [CocoaError.fileReadNoPermission.rawValue, CocoaError.fileWriteNoPermission.rawValue].contains(error.code) { return true }
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+            return isPermissionDenied(underlying)
+        }
+        return false
+    }
+}
 
 enum DeveloperStorageKind: String, CaseIterable, Identifiable, Sendable {
     case deviceSupport
     case simulators
     case simulatorRuntimes
     case codexData
+    case userCaches
+    case appSupport
+    case systemTmp
 
     var id: String { rawValue }
     var title: String {
@@ -13,6 +42,9 @@ enum DeveloperStorageKind: String, CaseIterable, Identifiable, Sendable {
         case .simulators: "模拟器设备"
         case .simulatorRuntimes: "iOS 模拟器运行时"
         case .codexData: "Codex 数据"
+        case .userCaches: "用户缓存"
+        case .appSupport: "应用支持数据"
+        case .systemTmp: "系统临时目录"
         }
     }
     var relativePath: String {
@@ -21,21 +53,49 @@ enum DeveloperStorageKind: String, CaseIterable, Identifiable, Sendable {
         case .simulators: "Library/Developer/CoreSimulator/Devices"
         case .simulatorRuntimes: "System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime"
         case .codexData: ".codex"
+        case .userCaches: "Library/Caches"
+        case .appSupport: "Library/Application Support"
+        case .systemTmp: "private/tmp"
         }
     }
 
-    var showsBatchSelection: Bool { self == .deviceSupport || self == .simulators }
-    var displayPath: String { (self == .simulatorRuntimes ? "/" : "~/") + relativePath }
+    var showsBatchSelection: Bool {
+        switch self {
+        case .deviceSupport, .simulators, .userCaches, .systemTmp: true
+        default: false
+        }
+    }
+    var displayPath: String {
+        switch self {
+        case .simulatorRuntimes: "/" + relativePath
+        case .systemTmp: "/" + relativePath
+        default: "~/" + relativePath
+        }
+    }
+    // Library categories use conservative eligibility checks; these cannot
+    // prove that application data is no longer needed.
+    var isLibraryManagement: Bool {
+        switch self {
+        case .userCaches, .appSupport, .systemTmp: true
+        default: false
+        }
+    }
     var monitoringDescription: String? {
         switch self {
         case .simulatorRuntimes: "通过系统接口逐个卸载；使用中的运行时不能卸载。"
         case .codexData: "仅开放白名单缓存和超过 7 天的日志清理；会话和图片保持只读。"
+        case .userCaches: "仅开放归属已确认且未运行的应用缓存；未知归属保持只读。"
+        case .appSupport: "应用支持数据可能包含设置和用户记录，全部保持只读。"
+        case .systemTmp: "仅开放整棵树均属当前用户且超过 3 天未修改的普通文件和目录；修改时间不代表未使用。"
         default: nil
         }
     }
 
     func root(in home: URL) -> URL {
-        self == .simulatorRuntimes ? URL(fileURLWithPath: "/" + relativePath) : home.appendingPathComponent(relativePath)
+        switch self {
+        case .simulatorRuntimes, .systemTmp: URL(fileURLWithPath: "/" + relativePath)
+        default: home.appendingPathComponent(relativePath)
+        }
     }
 }
 
@@ -68,13 +128,21 @@ struct StorageManifest: Equatable, Sendable {
     let allocatedBytes: Int64
 
     var root: StorageNodeIdentity? { nodes.first }
-    var isSafeDirectory: Bool {
-        guard let root else { return false }
-        return root.isDirectory && !root.isSymbolicLink && !nodes.contains { $0.isMountPoint }
-    }
-    var isSafeFile: Bool {
-        guard nodes.count == 1, let root else { return false }
-        return root.mode & 0o170000 == 0o100000 && !root.isSymbolicLink && !root.isMountPoint
+    // Evidence is immutable; calculate these once rather than walking every
+    // descendant on the MainActor for each row, selection, and confirmation.
+    let isSafeDirectory: Bool
+    let isSafeFile: Bool
+
+    init(canonicalPath: String, nodes: [StorageNodeIdentity], allocatedBytes: Int64) {
+        self.canonicalPath = canonicalPath
+        self.nodes = nodes
+        self.allocatedBytes = allocatedBytes
+        let root = nodes.first
+        isSafeDirectory = root?.isDirectory == true && root?.isSymbolicLink == false
+            && !nodes.contains { $0.isMountPoint }
+        isSafeFile = nodes.count == 1 && root.map {
+            $0.mode & 0o170000 == 0o100000 && !$0.isSymbolicLink && !$0.isMountPoint
+        } == true
     }
 }
 
@@ -115,6 +183,7 @@ enum StorageCleanupAction: Equatable, Sendable {
     case simulatorDevice(String)
     case runtime(StorageRuntimeTarget)
     case codexFile(CodexCleanupFileKind)
+    case libraryDirectory(DeveloperStorageKind)
 
     var kind: DeveloperStorageKind {
         switch self {
@@ -122,15 +191,19 @@ enum StorageCleanupAction: Equatable, Sendable {
         case .simulatorDevice: .simulators
         case .runtime: .simulatorRuntimes
         case .codexFile: .codexData
+        case let .libraryDirectory(kind): kind
         }
     }
     var allowsBatch: Bool {
-        if case .runtime = self { return false }
-        return true
+        switch self {
+        case .runtime: return false
+        case let .libraryDirectory(kind): return kind == .userCaches || kind == .systemTmp
+        default: return true
+        }
     }
     var title: String {
         switch self {
-        case .directory, .codexFile: "永久删除"
+        case .directory, .codexFile, .libraryDirectory: "永久删除"
         case .simulatorDevice: "删除设备"
         case .runtime: "卸载运行时"
         }
@@ -218,11 +291,24 @@ struct DeveloperStorageEntry: Identifiable, Equatable, Sendable {
         case .directory, .simulatorDevice: return manifest?.isSafeDirectory == true
         case .codexFile: return manifest?.isSafeFile == true
         case let .runtime(target): return target.unavailableReason == nil
+        case let .libraryDirectory(kind):
+            guard let manifest else { return false }
+            switch kind {
+            case .userCaches: return manifest.isSafeDirectory
+            case .systemTmp: return manifest.isSafeDirectory || manifest.isSafeFile
+            default: return false
+            }
         }
     }
     var cleanupTitle: String { cleanupAction?.title ?? "永久删除" }
     var allowsSelection: Bool { cleanupAction?.allowsBatch == true }
     var canListCleanupCandidates: Bool { kind == .codexData && ["cache", "log"].contains(name) && cleanupAction == nil }
+    // Scan-time verdict for the library directories: an eligibility label or
+    // the reason an entry cannot be cleaned. Other kinds have authoritative tools.
+    var safetyMark: String? {
+        guard kind.isLibraryManagement else { return nil }
+        return canClean ? "符合清理条件" : cleanupUnavailableReason
+    }
     func withManifest(_ manifest: StorageManifest?) -> Self {
         Self(kind: kind, path: path, name: name, manifest: manifest, measuredBytes: measuredBytes, modifiedAt: modifiedAt,
              issues: issues, device: device, cleanupUnavailableReason: cleanupUnavailableReason, cleanupAction: cleanupAction)
@@ -242,6 +328,13 @@ struct DeveloperStorageEntry: Identifiable, Equatable, Sendable {
                 + "\n卸载后，关联设备需重新安装此 Runtime 才能使用。不会删除这些设备的数据。"
         case .codexFile(.cache): impact = "将永久删除此缓存文件，之后可能重新生成。不会删除会话、图片或配置。"
         case .codexFile(.oldLog): impact = "将永久删除此旧日志，之后无法用它排查历史问题。"
+        case let .libraryDirectory(targetKind):
+            switch targetKind {
+            case .userCaches: impact = "将永久删除此缓存目录。应用可能重新生成缓存；请先退出相关应用。检查结果不保证应用稍后不会重新使用它。"
+            case .appSupport: impact = "应用支持数据保持只读。"
+            case .systemTmp: impact = "将永久删除此目标及其内容，无法恢复。所有条目均超过 3 天未修改，但这不代表未使用；进程稍后仍可能读取它。"
+            default: impact = "将永久删除此目录或文件，之后无法恢复。"
+            }
         case nil: impact = "此条目不支持清理。"
         }
         let identity = device.map { "\($0.name)\n\($0.runtimeTitle) · \($0.stateTitle)\($0.availabilityTitle)\nUDID：\($0.udid)\n" } ?? "\(name)\n"
@@ -259,6 +352,20 @@ struct DeveloperStorageSnapshot: Sendable {
     let issues: [String]
     let isMissing: Bool
     let notice: String?
+    let permissionDeniedPaths: [String]
+
+    init(kind: DeveloperStorageKind, path: String, entries: [DeveloperStorageEntry], allocatedBytes: Int64?,
+         scannedAt: Date, issues: [String], isMissing: Bool, notice: String?, permissionDeniedPaths: [String] = []) {
+        self.kind = kind
+        self.path = path
+        self.entries = entries
+        self.allocatedBytes = allocatedBytes
+        self.scannedAt = scannedAt
+        self.issues = issues
+        self.isMissing = isMissing
+        self.notice = notice
+        self.permissionDeniedPaths = permissionDeniedPaths
+    }
 
     var isComplete: Bool { !isMissing && allocatedBytes != nil && issues.isEmpty }
     var sizeText: String {

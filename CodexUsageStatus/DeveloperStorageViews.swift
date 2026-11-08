@@ -5,6 +5,7 @@ struct DeveloperStorageView: View {
     @ObservedObject var store: DeveloperStorageStore
     var showsHeader = true
     @State private var expanded: Set<DeveloperStorageKind> = []
+    @State private var accessSettingsError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -12,6 +13,7 @@ struct DeveloperStorageView: View {
                 Label("开发存储", systemImage: "internaldrive")
                     .font(.subheadline.weight(.medium))
             }
+            if !store.permissionDeniedKinds.isEmpty { diskAccessGuidance }
             ForEach(DeveloperStorageKind.allCases) { kind in
                 directory(kind)
             }
@@ -54,6 +56,39 @@ struct DeveloperStorageView: View {
                 confirm: { store.confirmCleanup(request) }
             )
         }
+    }
+
+    private var diskAccessGuidance: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("部分目录访问受限", systemImage: "lock.shield")
+                .font(.caption.weight(.medium))
+            Text("若目录受 macOS 隐私保护限制，请在系统设置 → 隐私与安全性 → 完全磁盘访问权限中添加并开启本应用。授权由系统保存，无需每次扫描重新授权；授权后可能需要退出并重新打开应用。文件自身的权限限制仍可能阻止读取。")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("打开授权设置") { openDiskAccessSettings() }
+                Button("在 Finder 显示本应用") {
+                    NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                }
+            }
+            Button("授权后重新扫描") { store.refreshPermissionDeniedDirectories() }
+                .disabled(store.isBusy || store.pendingConfirmation != nil)
+            if let accessSettingsError { warning(accessSettingsError) }
+        }
+        .controlSize(.mini)
+        .padding(8)
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func openDiskAccessSettings() {
+        accessSettingsError = nil
+        // This is a navigation hint, not an authorization API. Fall back to the
+        // Settings app if a system version does not accept the pane URL.
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"),
+           NSWorkspace.shared.open(url) { return }
+        if let settings = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.systempreferences"),
+           NSWorkspace.shared.open(settings) { return }
+        accessSettingsError = "无法打开系统设置，请从苹果菜单进入隐私与安全性 → 完全磁盘访问权限。"
     }
 
     private func directory(_ kind: DeveloperStorageKind) -> some View {
@@ -192,6 +227,9 @@ struct DeveloperStorageView: View {
                 .fixedSize(horizontal: false, vertical: true)
             if entry.kind != .codexData, let reason = entry.cleanupUnavailableReason {
                 Text(reason).font(.caption2).foregroundStyle(.secondary)
+            }
+            if let mark = entry.safetyMark, entry.cleanupUnavailableReason == nil {
+                Text(mark).font(.caption2).foregroundStyle(.green)
             }
             if !entry.issues.isEmpty { warning(entry.issues.prefix(2).joined(separator: "\n")) }
             HStack {

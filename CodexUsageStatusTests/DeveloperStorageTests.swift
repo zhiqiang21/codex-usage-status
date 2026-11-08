@@ -3,6 +3,11 @@ import Darwin
 import XCTest
 @testable import CodexUsageStatus
 
+struct StorageStubAppResolver: StorageAppResolving {
+    let apps: [String: [URL]]
+    func installedAppURLs(forBundleIdentifier identifier: String) -> [URL] { apps[identifier] ?? [] }
+}
+
 final class StorageTestCommands: StorageCommandRunning, @unchecked Sendable {
     struct Invocation: Sendable { let executable: String; let arguments: [String] }
     private let lock = NSLock()
@@ -29,7 +34,8 @@ final class StorageTestCommands: StorageCommandRunning, @unchecked Sendable {
 
 final class DeveloperStorageTests: XCTestCase {
     private func temporaryHome() throws -> URL {
-        let home = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+        let temporaryRoot = try XCTUnwrap(StorageCanonicalPath.resolve(FileManager.default.temporaryDirectory))
+        let home = URL(fileURLWithPath: temporaryRoot)
             .appendingPathComponent("DeveloperStorageTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: home) }
@@ -207,6 +213,67 @@ final class DeveloperStorageTests: XCTestCase {
         XCTAssertFalse(scan.issues.isEmpty)
     }
 
+    func testPermissionErrorsUseStructuredCodesRatherThanLocalizedMessages() {
+        XCTAssertTrue(StorageFileAccess.isPermissionDenied(NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES))))
+        XCTAssertTrue(StorageFileAccess.isPermissionDenied(NSError(domain: NSPOSIXErrorDomain, code: Int(EPERM))))
+        XCTAssertTrue(StorageFileAccess.isPermissionDenied(CocoaError(.fileReadNoPermission)))
+        let wrapped = NSError(domain: "test", code: 99, userInfo: [NSUnderlyingErrorKey:
+            NSError(domain: NSPOSIXErrorDomain, code: Int(EPERM))])
+        XCTAssertTrue(StorageFileAccess.isPermissionDenied(wrapped))
+        XCTAssertFalse(StorageFileAccess.isPermissionDenied(DeveloperStorageError.unsafeTarget))
+        XCTAssertFalse(StorageFileAccess.isPermissionDenied(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT))))
+        XCTAssertFalse(StorageFileAccess.isPermissionDenied(NSError(domain: "test", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "Permission denied"])))
+    }
+
+    func testPhysicalTmpPathsAreAcceptedButSymlinkRootsStayReadOnly() async throws {
+        // Inspect only metadata for the real system root; scans and cleanup below
+        // are restricted to this uniquely named test directory.
+        XCTAssertEqual(StorageCanonicalPath.resolve(URL(fileURLWithPath: "/private/tmp")), "/private/tmp")
+        let root = URL(fileURLWithPath: "/private/tmp").appendingPathComponent("CodexTmpPathTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("old-file")
+        try Data([1]).write(to: file)
+        let current = Date()
+        try FileManager.default.setAttributes([.modificationDate: current.addingTimeInterval(-10 * 86_400)], ofItemAtPath: file.path)
+        let commands = StorageTestCommands()
+        let service = DeveloperStorageService(home: root, commands: commands, systemTmpRoot: root, now: { current })
+        let scan = await service.scan(.systemTmp)
+        XCTAssertTrue(scan.isComplete)
+        XCTAssertTrue(scan.permissionDeniedPaths.isEmpty)
+        let entry = try XCTUnwrap(scan.entries.first)
+        XCTAssertTrue(entry.canClean)
+        let link = root.appendingPathComponent("linked-root")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: root)
+        let linkedService = DeveloperStorageService(home: root, commands: commands, systemTmpRoot: link, now: { current })
+        let linkedScan = await linkedService.scan(.systemTmp)
+        XCTAssertFalse(linkedScan.isComplete)
+        XCTAssertTrue(linkedScan.entries.isEmpty)
+        XCTAssertTrue(linkedScan.permissionDeniedPaths.isEmpty)
+        try FileManager.default.removeItem(at: link)
+        // The root's mtime changed, but a selected single file is unchanged.
+        let result = try await service.clean(entry)
+        XCTAssertTrue(result.targetRemoved)
+    }
+
+    func testPermissionDeniedRootIsRecordedAndCanBeRescannedAfterAccessChanges() async throws {
+        guard getuid() != 0 else { throw XCTSkip("Root bypasses directory permissions") }
+        let home = try temporaryHome()
+        let root = DeveloperStorageKind.appSupport.root(in: home)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: root.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path) }
+        let service = DeveloperStorageService(home: home, commands: StorageTestCommands())
+        let denied = await service.scan(.appSupport)
+        XCTAssertFalse(denied.isComplete)
+        XCTAssertEqual(denied.permissionDeniedPaths, [root.path])
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
+        let allowed = await service.scan(.appSupport)
+        XCTAssertTrue(allowed.isComplete)
+        XCTAssertTrue(allowed.permissionDeniedPaths.isEmpty)
+    }
+
     func testPermissionFailureIsPartialAndDisablesCleanup() async throws {
         guard getuid() != 0 else { throw XCTSkip("Root bypasses directory permissions") }
         let home = try temporaryHome()
@@ -216,6 +283,7 @@ final class DeveloperStorageTests: XCTestCase {
         let scan = await DeveloperStorageService(home: home).scan(.deviceSupport)
         XCTAssertFalse(scan.isComplete)
         XCTAssertFalse(scan.issues.isEmpty)
+        XCTAssertEqual(scan.permissionDeniedPaths, [version.path])
         XCTAssertFalse(try XCTUnwrap(scan.entries.first).canClean)
     }
 
@@ -305,6 +373,361 @@ final class DeveloperStorageTests: XCTestCase {
             issues: [], device: nil, cleanupUnavailableReason: nil)
         do { _ = try await service.clean(forged); XCTFail("Must reject a target outside the allowed root") }
         catch { XCTAssertTrue(commands.invocations.isEmpty) }
+    }
+
+    // MARK: - Library management
+
+    private func makeApp(_ home: URL, identifier: String, name: String) throws -> URL {
+        let app = home.appendingPathComponent("Applications/\(name).app")
+        try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        let data = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": identifier,
+            "CFBundleExecutable": name, "CFBundlePackageType": "APPL"], format: .xml, options: 0)
+        try data.write(to: app.appendingPathComponent("Contents/Info.plist"))
+        return app
+    }
+
+    func testLibraryKindsUseExpectedRootsAndSelection() {
+        let home = URL(fileURLWithPath: "/Users/test-user")
+        XCTAssertEqual(DeveloperStorageKind.userCaches.root(in: home).path, "/Users/test-user/Library/Caches")
+        XCTAssertEqual(DeveloperStorageKind.appSupport.root(in: home).path, "/Users/test-user/Library/Application Support")
+        XCTAssertEqual(DeveloperStorageKind.systemTmp.root(in: home).path, "/private/tmp")
+        XCTAssertEqual(DeveloperStorageKind.systemTmp.displayPath, "/private/tmp")
+        XCTAssertFalse(DeveloperStorageKind.appSupport.showsBatchSelection)
+        for kind in [DeveloperStorageKind.userCaches, .systemTmp] {
+            XCTAssertTrue(kind.showsBatchSelection)
+            XCTAssertTrue(kind.isLibraryManagement)
+        }
+    }
+
+    func testCachesMatchActualBundlePathsIncludingHelpersAndFailClosedForUnknownApps() async throws {
+        let home = try temporaryHome()
+        let root = DeveloperStorageKind.userCaches.root(in: home)
+        let chrome = try makeApp(home, identifier: "com.google.Chrome", name: "Google Chrome")
+        let idleApp = try makeApp(home, identifier: "com.example.IdleApp", name: "Idle App")
+        for name in ["com.google.Chrome", "com.example.IdleApp", "com.example.Unknown", "UnknownCache"] {
+            let directory = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data(repeating: 1, count: 4_096).write(to: directory.appendingPathComponent("blob"))
+        }
+        let resolver = StorageStubAppResolver(apps: ["com.google.Chrome": [chrome], "com.example.IdleApp": [idleApp]])
+        // A nested helper alone is enough to protect the parent app's cache.
+        for executable in ["Contents/MacOS/Google Chrome", "Contents/Frameworks/Helper.app/Contents/MacOS/Helper"] {
+            let processList = Data("\(chrome.path)/\(executable)\n/usr/sbin/syslogd\n".utf8)
+            let commands = StorageTestCommands { path, _ in
+                path == "/bin/ps" ? StorageCommandResult(status: 0, output: processList, error: Data())
+                    : StorageCommandResult(status: 1, output: Data(), error: Data())
+            }
+            let scan = await DeveloperStorageService(home: home, commands: commands, appResolver: resolver).scan(.userCaches)
+            let running = try XCTUnwrap(scan.entries.first { $0.name == "com.google.Chrome" })
+            XCTAssertFalse(running.canClean)
+            XCTAssertNil(running.manifest)
+            XCTAssertEqual(running.cleanupUnavailableReason, "归属应用正在运行，暂不能删除")
+            let idle = try XCTUnwrap(scan.entries.first { $0.name == "com.example.IdleApp" })
+            XCTAssertTrue(idle.canClean)
+            XCTAssertEqual(idle.safetyMark, "符合清理条件")
+            XCTAssertTrue(scan.entries.filter { $0.name.contains("Unknown") }.allSatisfy { !$0.canClean && $0.manifest == nil })
+            XCTAssertEqual(commands.invocations.filter { $0.executable == "/bin/ps" }.count, 1)
+        }
+        let failing = StorageTestCommands()
+        let fallback = await DeveloperStorageService(home: home, commands: failing, appResolver: resolver).scan(.userCaches)
+        XCTAssertTrue(fallback.entries.allSatisfy { !$0.canClean && $0.manifest == nil })
+    }
+
+    func testCachesCheckEveryRegisteredInstallationAndValidateBundleIdentifier() async throws {
+        let home = try temporaryHome()
+        let first = try makeApp(home, identifier: "com.google.Chrome", name: "Chrome First")
+        let second = try makeApp(home, identifier: "com.google.Chrome", name: "Chrome Second")
+        let wrong = try makeApp(home, identifier: "com.example.Other", name: "Wrong App")
+        let root = DeveloperStorageKind.userCaches.root(in: home)
+        for name in ["com.google.Chrome", "com.example.Mismatch"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        let commands = StorageTestCommands { executable, _ in
+            executable == "/bin/ps" ? StorageCommandResult(status: 0,
+                output: Data("\(second.path)/Contents/MacOS/Google Chrome\n".utf8), error: Data())
+                : StorageCommandResult(status: 1, output: Data(), error: Data())
+        }
+        let resolver = StorageStubAppResolver(apps: ["com.google.Chrome": [first, second], "com.example.Mismatch": [wrong]])
+        let scan = await DeveloperStorageService(home: home, commands: commands, appResolver: resolver).scan(.userCaches)
+        XCTAssertEqual(scan.entries.count, 2)
+        XCTAssertTrue(scan.entries.allSatisfy { !$0.canClean && $0.manifest == nil })
+    }
+
+    func testBatchCacheCleanupQueriesProcessesOnlyAtSafetyCheckpoints() async throws {
+        let home = try temporaryHome()
+        let app = try makeApp(home, identifier: "com.example.IdleApp", name: "Idle App")
+        let otherApp = try makeApp(home, identifier: "com.example.SecondApp", name: "Second App")
+        let root = DeveloperStorageKind.userCaches.root(in: home)
+        for name in ["com.example.IdleApp", "com.example.SecondApp"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        let commands = StorageTestCommands { executable, _ in
+            executable == "/bin/ps" ? StorageCommandResult(status: 0, output: Data("/usr/sbin/syslogd\n".utf8), error: Data())
+                : StorageCommandResult(status: 1, output: Data(), error: Data())
+        }
+        let resolver = StorageStubAppResolver(apps: ["com.example.IdleApp": [app], "com.example.SecondApp": [otherApp]])
+        let service = DeveloperStorageService(home: home, commands: commands, appResolver: resolver)
+        let scan = await service.scan(.userCaches)
+        let before = commands.invocations.filter { $0.executable == "/bin/ps" }.count
+        let result = await service.cleanBatch(scan.entries) { _ in }
+        XCTAssertFalse(result.hasFailures)
+        XCTAssertEqual(result.items.count, 2)
+        let after = commands.invocations.filter { $0.executable == "/bin/ps" }.count
+        // Two fresh checks per target, then one final snapshot. No pre-cleanup
+        // category scan or duplicate validation/process listing per target.
+        XCTAssertEqual(after - before, 2 * scan.entries.count + 1)
+        XCTAssertEqual(commands.invocations.filter { $0.executable == "/usr/sbin/lsof" }.count, 2)
+        XCTAssertTrue(result.measurements.contains { $0.contains("用户缓存占用变化无法完整测量") })
+    }
+
+    func testStreamingVerificationRejectsIncompleteEvidenceAndPreservesHardLinks() async throws {
+        let home = try temporaryHome()
+        let directory = try makeVersion(home)
+        try FileManager.default.linkItem(at: directory.appendingPathComponent("symbols"), to: directory.appendingPathComponent("symbols-copy"))
+        let commands = StorageTestCommands()
+        let service = DeveloperStorageService(home: home, commands: commands)
+        let scan = await service.scan(.deviceSupport)
+        let entry = try XCTUnwrap(scan.entries.first)
+        let manifest = try XCTUnwrap(entry.manifest)
+        let badEvidence = [
+            StorageManifest(canonicalPath: manifest.canonicalPath, nodes: Array(manifest.nodes.dropLast()), allocatedBytes: manifest.allocatedBytes),
+            StorageManifest(canonicalPath: manifest.canonicalPath, nodes: manifest.nodes + [manifest.nodes[0]], allocatedBytes: manifest.allocatedBytes),
+            StorageManifest(canonicalPath: manifest.canonicalPath, nodes: manifest.nodes, allocatedBytes: manifest.allocatedBytes + 512)
+        ]
+        for evidence in badEvidence {
+            let forged = entry.withManifest(evidence)
+            XCTAssertTrue(forged.canClean)
+            do { _ = try await service.clean(forged); XCTFail("Inconsistent evidence must block deletion") }
+            catch { XCTAssertTrue(error is DeveloperStorageError) }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path))
+        }
+        XCTAssertTrue(commands.invocations.isEmpty)
+        let result = try await service.clean(entry)
+        XCTAssertTrue(result.targetRemoved)
+        XCTAssertEqual(commands.invocations.count, 1)
+    }
+
+    func testCacheDeletionRechecksAppOwnership() async throws {
+        let home = try temporaryHome()
+        let app = try makeApp(home, identifier: "com.example.IdleApp", name: "Idle App")
+        let target = DeveloperStorageKind.userCaches.root(in: home).appendingPathComponent("com.example.IdleApp")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        let commands = StorageTestCommands { executable, _ in
+            executable == "/bin/ps" ? StorageCommandResult(status: 0, output: Data("/usr/sbin/syslogd\n".utf8), error: Data())
+                : StorageCommandResult(status: 1, output: Data(), error: Data())
+        }
+        let service = DeveloperStorageService(home: home, commands: commands,
+            appResolver: StorageStubAppResolver(apps: ["com.example.IdleApp": [app]]))
+        let scan = await service.scan(.userCaches)
+        let entry = try XCTUnwrap(scan.entries.first)
+        XCTAssertTrue(entry.canClean)
+        try FileManager.default.removeItem(at: app)
+        do { _ = try await service.clean(entry); XCTFail("Unknown app must revoke deletion") }
+        catch { XCTAssertTrue(error is DeveloperStorageError) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
+        XCTAssertFalse(commands.invocations.contains { $0.executable == "/usr/sbin/lsof" })
+    }
+
+    func testCacheDeletionSucceedsWhenIdleButStopsIfAppStartsBeforeFinalCheck() async throws {
+        for startsDuringCleanup in [false, true] {
+            let home = try temporaryHome()
+            let app = try makeApp(home, identifier: "com.example.IdleApp", name: "Idle App")
+            let target = DeveloperStorageKind.userCaches.root(in: home).appendingPathComponent("com.example.IdleApp")
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+            try Data([1]).write(to: target.appendingPathComponent("cache"))
+            let counter = StorageTestCounter()
+            let commands = StorageTestCommands { executable, _ in
+                if executable == "/bin/ps" {
+                    let running = counter.next() >= 3 && startsDuringCleanup
+                    let path = running ? app.appendingPathComponent("Contents/MacOS/Idle App").path : "/usr/sbin/syslogd"
+                    return StorageCommandResult(status: 0, output: Data("\(path)\n".utf8), error: Data())
+                }
+                return StorageCommandResult(status: 1, output: Data(), error: Data())
+            }
+            let service = DeveloperStorageService(home: home, commands: commands,
+                appResolver: StorageStubAppResolver(apps: ["com.example.IdleApp": [app]]))
+            let scan = await service.scan(.userCaches)
+            let entry = try XCTUnwrap(scan.entries.first)
+            XCTAssertTrue(entry.canClean)
+            if startsDuringCleanup {
+                do { _ = try await service.clean(entry); XCTFail("A newly started app must block cleanup") }
+                catch { XCTAssertTrue(error is DeveloperStorageError) }
+                XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
+            } else {
+                let result = try await service.clean(entry)
+                XCTAssertTrue(result.targetRemoved)
+                XCTAssertNil(result.directoryReduction)
+            }
+            XCTAssertEqual(commands.invocations.filter { $0.executable == "/usr/sbin/lsof" }.count, 1)
+        }
+    }
+
+    func testAppSupportAlwaysRemainsReadOnlyWithoutManifestsOrProcessQueries() async throws {
+        let home = try temporaryHome()
+        let root = DeveloperStorageKind.appSupport.root(in: home)
+        for name in ["com.example.Gone", "com.example.Installed", "NotABundleID"] {
+            let directory = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data(repeating: 1, count: 4_096).write(to: directory.appendingPathComponent("user-data"))
+        }
+        let app = try makeApp(home, identifier: "com.example.Installed", name: "Installed App")
+        let commands = StorageTestCommands()
+        let scan = await DeveloperStorageService(home: home, commands: commands,
+            appResolver: StorageStubAppResolver(apps: ["com.example.Installed": [app]])).scan(.appSupport)
+        XCTAssertEqual(scan.entries.count, 3)
+        XCTAssertTrue(scan.entries.allSatisfy { !$0.canClean && !$0.allowsSelection && $0.manifest == nil })
+        XCTAssertTrue(scan.isComplete)
+        XCTAssertTrue(commands.invocations.isEmpty)
+    }
+
+    func testSystemTmpChecksAllDescendantsAndUsesNoProcessQueries() async throws {
+        let home = try temporaryHome()
+        let tmpRoot = home.appendingPathComponent("tmp")
+        let oldFile = tmpRoot.appendingPathComponent("old-report.txt")
+        let oldDirectory = tmpRoot.appendingPathComponent("old-session")
+        let recentFile = tmpRoot.appendingPathComponent("recent.txt")
+        let recentDirectory = tmpRoot.appendingPathComponent("old-parent-recent-child")
+        try FileManager.default.createDirectory(at: oldDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: recentDirectory, withIntermediateDirectories: true)
+        let oldChild = oldDirectory.appendingPathComponent("data")
+        let recentChild = recentDirectory.appendingPathComponent("data")
+        for file in [oldFile, oldChild, recentFile, recentChild] { try Data([1]).write(to: file) }
+        let current = Date()
+        let oldDate = current.addingTimeInterval(-10 * 86_400)
+        for file in [oldFile, oldChild, oldDirectory, recentDirectory] {
+            try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: file.path)
+        }
+        let commands = StorageTestCommands()
+        let service = DeveloperStorageService(home: home, commands: commands, systemTmpRoot: tmpRoot, now: { current })
+        let scan = await service.scan(.systemTmp)
+        let fileEntry = try XCTUnwrap(scan.entries.first { $0.name == "old-report.txt" })
+        let directoryEntry = try XCTUnwrap(scan.entries.first { $0.name == "old-session" })
+        XCTAssertTrue(fileEntry.canClean)
+        XCTAssertTrue(directoryEntry.canClean)
+        XCTAssertFalse(try XCTUnwrap(scan.entries.first { $0.name == "recent.txt" }).canClean)
+        XCTAssertFalse(try XCTUnwrap(scan.entries.first { $0.name == "old-parent-recent-child" }).canClean)
+        let fileResult = try await service.clean(fileEntry)
+        let directoryResult = try await service.clean(directoryEntry)
+        XCTAssertTrue(fileResult.targetRemoved)
+        XCTAssertTrue(directoryResult.targetRemoved)
+        XCTAssertNil(fileResult.directoryReduction)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: recentChild.path))
+        XCTAssertEqual(commands.invocations.map(\.executable), ["/usr/sbin/lsof", "/usr/sbin/lsof"])
+        XCTAssertEqual(commands.invocations.map(\.arguments), [["-nP", "--", oldFile.path], ["-nP", "+D", oldDirectory.path]])
+    }
+
+    func testSystemTmpBlocksLinksSpecialFilesWritableDirectoriesAndAgeBoundary() async throws {
+        let home = try temporaryHome()
+        let root = home.appendingPathComponent("tmp")
+        let current = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        let cutoff = current.addingTimeInterval(-3 * 86_400)
+        for name in ["linked", "special", "shared", "boundary"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("linked/link"), withDestinationURL: home)
+        XCTAssertEqual(mkfifo(root.appendingPathComponent("special/pipe").path, 0o600), 0)
+        try FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: root.appendingPathComponent("shared").path)
+        for name in ["linked", "special", "shared"] {
+            try FileManager.default.setAttributes([.modificationDate: current.addingTimeInterval(-10 * 86_400)], ofItemAtPath: root.appendingPathComponent(name).path)
+        }
+        try FileManager.default.setAttributes([.modificationDate: cutoff], ofItemAtPath: root.appendingPathComponent("boundary").path)
+        let commands = StorageTestCommands()
+        let service = DeveloperStorageService(home: home, commands: commands, systemTmpRoot: root, now: { current })
+        let scan = await service.scan(.systemTmp)
+        XCTAssertEqual(scan.entries.count, 4)
+        for entry in scan.entries {
+            XCTAssertFalse(entry.canClean, entry.name)
+            XCTAssertNil(entry.manifest, entry.name)
+        }
+        XCTAssertTrue(commands.invocations.isEmpty)
+    }
+
+    func testLibraryDeletionRejectsChangedDescendantsAndIncompleteOccupancy() async throws {
+        let home = try temporaryHome()
+        let root = home.appendingPathComponent("tmp")
+        let directory = root.appendingPathComponent("session")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("data")
+        try Data([1]).write(to: file)
+        let current = Date()
+        for path in [directory, file] {
+            try FileManager.default.setAttributes([.modificationDate: current.addingTimeInterval(-10 * 86_400)], ofItemAtPath: path.path)
+        }
+        let commands = StorageTestCommands { _, _ in
+            StorageCommandResult(status: 1, output: Data(), error: Data("incomplete traversal".utf8))
+        }
+        let service = DeveloperStorageService(home: home, commands: commands, systemTmpRoot: root, now: { current })
+        let scan = await service.scan(.systemTmp)
+        let entry = try XCTUnwrap(scan.entries.first)
+        XCTAssertTrue(entry.canClean)
+        do { _ = try await service.clean(entry); XCTFail("Incomplete occupancy must block deletion") }
+        catch { XCTAssertTrue(error is DeveloperStorageError) }
+        try Data([2, 3]).write(to: file)
+        let second = DeveloperStorageService(home: home, commands: StorageTestCommands(), systemTmpRoot: root, now: { current })
+        do { _ = try await second.clean(entry); XCTFail("Changed descendant must block deletion") }
+        catch { XCTAssertTrue(error is DeveloperStorageError) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    func testBatchCleansConfirmedCacheTmpAndSupportTargetsTogether() async throws {
+        let home = try temporaryHome()
+        let support = try makeVersion(home)
+        let app = try makeApp(home, identifier: "com.example.IdleApp", name: "Idle App")
+        let cache = DeveloperStorageKind.userCaches.root(in: home).appendingPathComponent("com.example.IdleApp")
+        let tmpRoot = home.appendingPathComponent("tmp")
+        try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tmpRoot, withIntermediateDirectories: true)
+        let file = tmpRoot.appendingPathComponent("old-data")
+        try Data([1]).write(to: file)
+        let current = Date()
+        try FileManager.default.setAttributes([.modificationDate: current.addingTimeInterval(-10 * 86_400)], ofItemAtPath: file.path)
+        let commands = StorageTestCommands { executable, _ in
+            executable == "/bin/ps" ? StorageCommandResult(status: 0, output: Data("/usr/sbin/syslogd\n".utf8), error: Data())
+                : StorageCommandResult(status: 1, output: Data(), error: Data())
+        }
+        let service = DeveloperStorageService(home: home, commands: commands, systemTmpRoot: tmpRoot,
+            appResolver: StorageStubAppResolver(apps: ["com.example.IdleApp": [app]]), now: { current })
+        let cacheScan = await service.scan(.userCaches)
+        let tmpScan = await service.scan(.systemTmp)
+        let supportScan = await service.scan(.deviceSupport)
+        let result = await service.cleanBatch(cacheScan.entries + tmpScan.entries + supportScan.entries) { _ in }
+        XCTAssertFalse(result.hasFailures)
+        XCTAssertEqual(result.items.count, 3)
+        XCTAssertTrue(result.items.allSatisfy(\.removed))
+        XCTAssertEqual(result.snapshots.count, 3)
+        XCTAssertEqual(result.measurements.filter { $0.contains("所在卷可用空间变化") }.count, 1)
+        for target in [support, cache, file] { XCTAssertFalse(FileManager.default.fileExists(atPath: target.path)) }
+    }
+
+    func testLibraryActionCannotBypassCodexProtectionOrEscapeRoot() async throws {
+        let home = try temporaryHome()
+        let codex = DeveloperStorageKind.codexData.root(in: home)
+        let sessions = codex.appendingPathComponent("sessions")
+        try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+        let current = Date()
+        try FileManager.default.setAttributes([.modificationDate: current.addingTimeInterval(-10 * 86_400)], ofItemAtPath: sessions.path)
+        let commands = StorageTestCommands()
+        // Capture a genuine tree identity, then try it with a forbidden action.
+        let scanner = DeveloperStorageService(home: home, commands: commands, systemTmpRoot: codex, now: { current })
+        let scan = await scanner.scan(.systemTmp)
+        let source = try XCTUnwrap(scan.entries.first)
+        XCTAssertTrue(source.canClean)
+        let forged = DeveloperStorageEntry(kind: .codexData, path: source.path, name: source.name,
+            manifest: source.manifest, measuredBytes: source.measuredBytes, modifiedAt: source.modifiedAt,
+            issues: [], device: nil, cleanupUnavailableReason: nil, cleanupAction: .libraryDirectory(.codexData))
+        XCTAssertFalse(forged.canClean)
+        let service = DeveloperStorageService(home: home, commands: commands)
+        do { _ = try await service.clean(forged); XCTFail("Codex sessions must stay protected") }
+        catch { XCTAssertTrue(error is DeveloperStorageError) }
+        // This forged entry is otherwise cleanable; the root/path guard must reject it.
+        let escaped = DeveloperStorageEntry(kind: .systemTmp, path: source.path, name: source.name,
+            manifest: source.manifest, measuredBytes: source.measuredBytes, modifiedAt: source.modifiedAt,
+            issues: [], device: nil, cleanupUnavailableReason: nil, cleanupAction: .libraryDirectory(.systemTmp))
+        XCTAssertTrue(escaped.canClean)
+        do { _ = try await service.clean(escaped); XCTFail("Target outside configured tmp must be rejected") }
+        catch { XCTAssertTrue(error is DeveloperStorageError) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessions.path))
+        XCTAssertTrue(commands.invocations.isEmpty)
     }
 
     func testDeviceStateChangeRevokesDeletion() async throws {
@@ -510,9 +933,9 @@ final class DeveloperStorageTests: XCTestCase {
         XCTAssertEqual(result.snapshots.count, 1)
         XCTAssertTrue(result.snapshots[0].entries.isEmpty)
         let listCountAfter = commands.invocations.filter { $0.arguments.contains("list") }.count
-        // Two shared parent scans, plus one live-state check immediately before
-        // each deletion. No per-item scans of all sibling directories.
-        XCTAssertEqual(listCountAfter - listCountBefore, 2 + ids.count)
+        // The pre-cleanup byte measurement needs no simctl. Only the final
+        // snapshot and each deletion's live-state check list the devices.
+        XCTAssertEqual(listCountAfter - listCountBefore, 1 + ids.count)
         let atomicCommands = commands.invocations.filter {
             $0.executable == "/usr/sbin/lsof" || $0.arguments.contains("delete")
         }
@@ -668,6 +1091,34 @@ final class DeveloperStorageStoreTests: XCTestCase {
         XCTAssertEqual(store.refreshErrors[.deviceSupport], "denied")
     }
 
+    func testPermissionGuidanceTracksLatestFailureEvenWhenDisplayingRetainedData() async throws {
+        let date = Date()
+        let readable = snapshot(date: date)
+        let provider = StorageControlledProvider([.deviceSupport: readable])
+        let store = DeveloperStorageStore(service: provider)
+        store.refresh(.deviceSupport)
+        try await waitUntil { !store.isBusy }
+        let denied = DeveloperStorageSnapshot(kind: .deviceSupport, path: "/test", entries: [], allocatedBytes: nil,
+            scannedAt: date, issues: ["denied"], isMissing: false, notice: nil, permissionDeniedPaths: ["/test"])
+        await provider.setSnapshot(denied)
+        store.refresh(.deviceSupport)
+        try await waitUntil { !store.isBusy }
+        XCTAssertEqual(store.permissionDeniedKinds, [.deviceSupport])
+        XCTAssertEqual(store.snapshots[.deviceSupport]?.allocatedBytes, 100)
+        XCTAssertTrue(store.isStale(.deviceSupport))
+        let countBefore = await provider.scanCount
+        await provider.setSnapshot(readable)
+        store.refreshPermissionDeniedDirectories()
+        try await waitUntil { !store.isBusy }
+        let countAfter = await provider.scanCount
+        XCTAssertEqual(countAfter - countBefore, 1)
+        XCTAssertTrue(store.permissionDeniedKinds.isEmpty)
+        XCTAssertFalse(store.isStale(.deviceSupport))
+        store.refreshPermissionDeniedDirectories()
+        let finalCount = await provider.scanCount
+        XCTAssertEqual(finalCount, countAfter)
+    }
+
     func testFiveMinuteCacheAndIndependentDirectoryRefresh() async throws {
         let date = Date()
         let provider = StorageControlledProvider([.deviceSupport: snapshot(date: date)])
@@ -688,7 +1139,8 @@ final class DeveloperStorageStoreTests: XCTestCase {
     }
 
     private func cleanupFixture(names: [String] = ["17.5 (21F79)"]) async throws -> DeveloperStorageSnapshot {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent("StorageStoreTests-\(UUID().uuidString)")
+        let temporaryRoot = try XCTUnwrap(StorageCanonicalPath.resolve(FileManager.default.temporaryDirectory))
+        let home = URL(fileURLWithPath: temporaryRoot).appendingPathComponent("StorageStoreTests-\(UUID().uuidString)")
         for name in names {
             let version = DeveloperStorageKind.deviceSupport.root(in: home).appendingPathComponent(name)
             try FileManager.default.createDirectory(at: version, withIntermediateDirectories: true)

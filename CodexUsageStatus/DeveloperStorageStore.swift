@@ -2,9 +2,13 @@ import Foundation
 
 @MainActor
 final class DeveloperStorageStore: ObservableObject {
+    // Scans are reused for this long before another walk is started.
+    static let cacheInterval: TimeInterval = 300
+
     @Published private(set) var snapshots: [DeveloperStorageKind: DeveloperStorageSnapshot] = [:]
     @Published private(set) var refreshing: Set<DeveloperStorageKind> = []
     @Published private(set) var refreshErrors: [DeveloperStorageKind: String] = [:]
+    @Published private(set) var permissionDeniedKinds: Set<DeveloperStorageKind> = []
     @Published private(set) var cleaningEntryID: String?
     @Published private(set) var operationMessage: String?
     @Published private(set) var operationFailed = false
@@ -38,14 +42,14 @@ final class DeveloperStorageStore: ObservableObject {
 
     func refreshIfNeeded() {
         for kind in DeveloperStorageKind.allCases {
-            if snapshots[kind].map({ now().timeIntervalSince($0.scannedAt) >= 300 }) ?? true {
+            if snapshots[kind].map({ now().timeIntervalSince($0.scannedAt) >= Self.cacheInterval }) ?? true {
                 refresh(kind)
             }
         }
     }
 
     func isStale(_ kind: DeveloperStorageKind) -> Bool {
-        refreshErrors[kind] != nil || snapshots[kind].map { now().timeIntervalSince($0.scannedAt) >= 300 } == true
+        refreshErrors[kind] != nil || snapshots[kind].map { now().timeIntervalSince($0.scannedAt) >= Self.cacheInterval } == true
     }
 
     func refresh(_ kind: DeveloperStorageKind) {
@@ -60,8 +64,16 @@ final class DeveloperStorageStore: ObservableObject {
         }
     }
 
+    func refreshPermissionDeniedDirectories() {
+        for kind in permissionDeniedKinds { refresh(kind) }
+    }
+
     private func accept(_ snapshot: DeveloperStorageSnapshot) {
         let kind = snapshot.kind
+        // Keep current permission failures even when displaying a retained,
+        // previously readable snapshot. Never persist a guessed authorization.
+        if snapshot.permissionDeniedPaths.isEmpty { permissionDeniedKinds.remove(kind) }
+        else { permissionDeniedKinds.insert(kind) }
         if kind == .codexData {
             cleanupCandidates = [:]
             candidateErrors = [:]
