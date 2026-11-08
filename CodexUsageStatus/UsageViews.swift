@@ -4,6 +4,7 @@ import SwiftUI
 struct UsageMenuBarLabel: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var settings: UserSettings
+    @ObservedObject var systemMetricsStore: SystemMetricsStore
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -16,7 +17,9 @@ struct UsageMenuBarLabel: View {
             presentation: presentation,
             displayMode: settings.menuBarDisplayMode,
             showsResetCredits: settings.showsResetCreditsInMenuBar,
-            colorScheme: colorScheme
+            colorScheme: colorScheme,
+            systemSnapshot: systemMetricsStore.snapshot,
+            systemMetrics: settings.systemMonitor.menuBar
         ) {
             // Preserve the full metric layout as a single native status-item image.
             Image(nsImage: image)
@@ -29,6 +32,13 @@ struct UsageMenuBarLabel: View {
     }
 
     private var accessibilityText: String {
+        let metrics = SystemMetric.allCases.filter { settings.systemMonitor.menuBar.contains($0) }.map {
+            "\($0.title)：\(systemMetricsStore.snapshot.text(for: $0).detailText)"
+        }
+        return ([quotaAccessibilityText] + metrics).joined(separator: "，")
+    }
+
+    private var quotaAccessibilityText: String {
         guard let snapshot = store.state.snapshot else {
             return "Codex 用量暂不可用"
         }
@@ -60,19 +70,25 @@ struct UsageMenuBarGraphic: View {
     let displayMode: MenuBarDisplayMode
     let showsResetCredits: Bool
     let colorScheme: ColorScheme
+    var systemSnapshot = SystemMetricsSnapshot()
+    var systemMetrics: Set<SystemMetric> = []
 
     @MainActor
     static func render(
         presentation: UsageMenuBarPresentation,
         displayMode: MenuBarDisplayMode,
         showsResetCredits: Bool,
-        colorScheme: ColorScheme = .light
+        colorScheme: ColorScheme = .light,
+        systemSnapshot: SystemMetricsSnapshot = SystemMetricsSnapshot(),
+        systemMetrics: Set<SystemMetric> = []
     ) -> NSImage? {
         let renderer = ImageRenderer(content: UsageMenuBarGraphic(
             presentation: presentation,
             displayMode: displayMode,
             showsResetCredits: showsResetCredits,
-            colorScheme: colorScheme
+            colorScheme: colorScheme,
+            systemSnapshot: systemSnapshot,
+            systemMetrics: systemMetrics
         ))
         // Keep text sharp on Retina displays while preserving the 22-point size.
         renderer.scale = max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 1, 2)
@@ -105,6 +121,15 @@ struct UsageMenuBarGraphic: View {
                     secondaryText: "重置卡",
                     systemImage: "creditcard",
                     minimumWidth: 30
+                )
+            }
+            ForEach(SystemMetric.allCases.filter { systemMetrics.contains($0) }) { metric in
+                separator
+                self.metric(
+                    value: systemSnapshot.text(for: metric).compactText,
+                    secondaryText: metric.title,
+                    systemImage: metric.systemImage,
+                    minimumWidth: metric == .upload || metric == .download ? 66 : 38
                 )
             }
         }
@@ -175,6 +200,7 @@ struct UsagePopoverView: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var storageStore: DeveloperStorageStore
     @ObservedObject var settings: UserSettings
+    let systemMetricsStore: SystemMetricsStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
 
     @State private var isStorageExpanded = false
@@ -199,9 +225,15 @@ struct UsagePopoverView: View {
                 }
 
                 Divider()
+                SystemMetricsDetailView(store: systemMetricsStore, settings: settings)
+                    .padding(.top, settings.systemMonitor.details.isEmpty ? 0 : 12)
                 storageSection
                 Divider()
                 menuBarSettings
+                Divider()
+                SystemMonitorSettingsView(settings: settings)
+                    .padding(.vertical, 12)
+                Divider()
                 refreshSettings
                 appSettings
                 Divider()
@@ -212,6 +244,12 @@ struct UsagePopoverView: View {
         // A scroll viewport needs an explicit height when MenuBarExtra measures
         // its window. Expanded storage and connection settings scroll within it.
         .frame(width: 340, height: min(460, (NSScreen.main?.visibleFrame.height ?? 800) - 80))
+        .background {
+            SystemMetricsVisibilityObserver { systemMetricsStore.setDetailsVisible($0) }
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .tint(.indigo)
         .background(UsagePopoverDismissObserver {
             storageStore.dismissOperationResult()
@@ -658,6 +696,7 @@ final class UsagePopoverDismissView: NSView {
         ),
         storageStore: DeveloperStorageStore(),
         settings: UserSettings(),
+        systemMetricsStore: SystemMetricsStore(settings: UserSettings()),
         launchAtLoginController: LaunchAtLoginController()
     )
 }
@@ -669,6 +708,7 @@ final class UsagePopoverDismissView: NSView {
         ),
         storageStore: DeveloperStorageStore(),
         settings: UserSettings(),
+        systemMetricsStore: SystemMetricsStore(settings: UserSettings()),
         launchAtLoginController: LaunchAtLoginController()
     )
 }

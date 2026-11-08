@@ -28,6 +28,12 @@
 		100000000000000000000015 /* DeveloperStorageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000015 /* DeveloperStorageViews.swift */; };
 		100000000000000000000016 /* DeveloperStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000016 /* DeveloperStorageTests.swift */; };
 		100000000000000000000017 /* StorageCleanupSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000017 /* StorageCleanupSafetyTests.swift */; };
+		100000000000000000000021 /* SystemMetricsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000021 /* SystemMetricsModels.swift */; };
+		100000000000000000000022 /* SystemMetricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000022 /* SystemMetricsService.swift */; };
+		100000000000000000000023 /* SystemMetricsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000023 /* SystemMetricsStore.swift */; };
+		100000000000000000000024 /* SystemMetricsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000024 /* SystemMetricsViews.swift */; };
+		100000000000000000000025 /* SystemMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000025 /* SystemMetricsTests.swift */; };
+		100000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000026 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +70,12 @@
 		200000000000000000000015 /* DeveloperStorageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperStorageViews.swift; sourceTree = "<group>"; };
 		200000000000000000000016 /* DeveloperStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperStorageTests.swift; sourceTree = "<group>"; };
 		200000000000000000000017 /* StorageCleanupSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageCleanupSafetyTests.swift; sourceTree = "<group>"; };
+		200000000000000000000021 /* SystemMetricsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetricsModels.swift; sourceTree = "<group>"; };
+		200000000000000000000022 /* SystemMetricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetricsService.swift; sourceTree = "<group>"; };
+		200000000000000000000023 /* SystemMetricsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetricsStore.swift; sourceTree = "<group>"; };
+		200000000000000000000024 /* SystemMetricsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetricsViews.swift; sourceTree = "<group>"; };
+		200000000000000000000025 /* SystemMetricsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetricsTests.swift; sourceTree = "<group>"; };
+		200000000000000000000026 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -110,6 +122,11 @@
 				200000000000000000000013 /* DeveloperStorageService.swift */,
 				200000000000000000000012 /* StorageCommandRunner.swift */,
 				200000000000000000000011 /* DeveloperStorageModels.swift */,
+				200000000000000000000021 /* SystemMetricsModels.swift */,
+				200000000000000000000022 /* SystemMetricsService.swift */,
+				200000000000000000000023 /* SystemMetricsStore.swift */,
+				200000000000000000000024 /* SystemMetricsViews.swift */,
+				200000000000000000000026 /* PrivacyInfo.xcprivacy */,
 				200000000000000000000010 /* Assets.xcassets */,
 			);
 			path = CodexUsageStatus;
@@ -122,6 +139,7 @@
 				20000000000000000000000B /* ProtocolDecodingTests.swift */,
 				20000000000000000000000C /* RefreshIntervalTests.swift */,
 				20000000000000000000000D /* JSONLineFramerTests.swift */,
+				200000000000000000000025 /* SystemMetricsTests.swift */,
 				200000000000000000000016 /* DeveloperStorageTests.swift */,
 				200000000000000000000017 /* StorageCleanupSafetyTests.swift */,
 			);
@@ -218,6 +236,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				100000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */,
 				10000000000000000000000E /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -236,6 +255,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				100000000000000000000021 /* SystemMetricsModels.swift in Sources */,
+				100000000000000000000022 /* SystemMetricsService.swift in Sources */,
+				100000000000000000000023 /* SystemMetricsStore.swift in Sources */,
+				100000000000000000000024 /* SystemMetricsViews.swift in Sources */,
 				100000000000000000000001 /* CodexUsageStatusApp.swift in Sources */,
 				100000000000000000000002 /* UsageModels.swift in Sources */,
 				100000000000000000000003 /* CodexProtocol.swift in Sources */,
@@ -261,6 +284,7 @@
 				10000000000000000000000B /* ProtocolDecodingTests.swift in Sources */,
 				10000000000000000000000C /* RefreshIntervalTests.swift in Sources */,
 				10000000000000000000000D /* JSONLineFramerTests.swift in Sources */,
+				100000000000000000000025 /* SystemMetricsTests.swift in Sources */,
 				100000000000000000000016 /* DeveloperStorageTests.swift in Sources */,
 				100000000000000000000017 /* StorageCleanupSafetyTests.swift in Sources */,
 			);

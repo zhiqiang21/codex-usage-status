@@ -23,6 +23,7 @@ final class RefreshIntervalTests: XCTestCase {
                     store: UsageStore(settings: settings, initialState: state),
                     storageStore: DeveloperStorageStore(service: PopoverStorageProvider()),
                     settings: settings,
+                    systemMetricsStore: SystemMetricsStore(settings: settings),
                     launchAtLoginController: LaunchAtLoginController()
                 ))
 
@@ -206,6 +207,7 @@ final class RefreshIntervalTests: XCTestCase {
                 ),
                 storageStore: DeveloperStorageStore(service: PopoverStorageProvider()),
                 settings: settings,
+                systemMetricsStore: SystemMetricsStore(settings: settings),
                 launchAtLoginController: LaunchAtLoginController()
             )
             .environment(\.colorScheme, scheme)

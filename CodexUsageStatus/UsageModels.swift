@@ -63,9 +63,11 @@ final class UserSettings: ObservableObject {
     @Published private(set) var showsResetCreditsInMenuBar: Bool
     @Published private(set) var refreshInterval: RefreshInterval
     @Published private(set) var executablePath: String
+    @Published private(set) var systemMonitor: SystemMonitorSettings
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        systemMonitor = SystemMonitorSettings(defaults: defaults)
         menuBarDisplayMode = defaults.string(forKey: Key.menuBarDisplayMode)
             .flatMap(MenuBarDisplayMode.init(rawValue:)) ?? .both
         showsResetCreditsInMenuBar = defaults.object(forKey: Key.showsResetCreditsInMenuBar)
@@ -74,6 +76,26 @@ final class UserSettings: ObservableObject {
             rawValue: defaults.integer(forKey: Key.refreshInterval)
         ) ?? .tenMinutes
         executablePath = defaults.string(forKey: Key.executablePath) ?? ""
+    }
+
+    func setSystemMetric(_ metric: SystemMetric, at location: SystemMetricLocation, visible: Bool) {
+        var updated = systemMonitor
+        if location == .menuBar {
+            if visible { updated.menuBar.insert(metric) } else { updated.menuBar.remove(metric) }
+        } else {
+            if visible { updated.details.insert(metric) } else { updated.details.remove(metric) }
+        }
+        guard updated != systemMonitor else { return }
+        defaults.set(visible, forKey: SystemMonitorSettings.visibilityKey(metric, at: location))
+        systemMonitor = updated
+    }
+
+    func setSystemRefreshInterval(_ interval: SystemRefreshInterval) {
+        guard systemMonitor.interval != interval else { return }
+        var updated = systemMonitor
+        updated.interval = interval
+        defaults.set(interval.rawValue, forKey: SystemMonitorSettings.intervalKey)
+        systemMonitor = updated
     }
 
     func setMenuBarDisplayMode(_ mode: MenuBarDisplayMode) {

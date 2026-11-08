@@ -155,6 +155,23 @@ Batch cleanup runs serially in the background with progress, avoiding competing 
 
 After cleanup, the app separately reports measured directory usage reduction and the change in available volume space. Closing the popover or expanding/collapsing either directory clears cleanup result messages. In-flight cleanup continues and updates storage measurements, but dismissed results do not reappear. APFS shared blocks, snapshots, and other processes can affect those numbers; measured usage is not guaranteed reclaimable space. Keep any device data you still need.
 
+## System monitoring
+
+The popover's System Status section shows startup disk capacity, estimated used memory, whole-machine CPU utilization, and upload/download speeds for the primary network interface. Monitoring works independently of Codex CLI, including when signed out or when quota requests fail.
+
+System Monitoring Settings provides separate **menu bar** and **details** switches for each of the five metrics. Changes take effect immediately and persist across launches. By default, all details are enabled and all menu bar metrics are disabled. Enabled menu bar metrics appear in disk, memory, CPU, upload, download order; choose only the metrics that fit your menu bar.
+
+- Choose a **1, 2, or 5 second** system refresh interval (default: **2 seconds**), independently of Codex's 5/10/30/60 minute quota refresh.
+- Disk capacity refreshes every **30 seconds**, reading the startup data volume without scanning directories. External disks and disk I/O speeds are not included.
+- Estimated used memory is anonymous pages minus purgeable pages, plus wired pages and the compressor's resident pages, multiplied by the actual page size. It can differ from Activity Monitor because of accounting and sampling time.
+- CPU utilization uses busy/total tick deltas across samples and is normalized to **0–100%** for the whole machine.
+- Upload and download use byte-counter deltas and actual monotonic elapsed time, displayed in decimal B/s, KB/s, MB/s, or GB/s. The primary IPv4 interface is preferred, with IPv6 as fallback. Physical and VPN interfaces are never added together; the selected interface name appears in details.
+- CPU and network speeds wait for an initial baseline. Interface changes, counter resets, and wake from sleep establish a new baseline; no primary interface is shown as disconnected. A failed metric shows its reason without blocking others.
+- Menu bar metrics continue sampling with the popover closed. Details-only metrics are sampled only while the popover is open. No sampling occurs when all metrics are disabled; settings remain accessible.
+
+System metrics stay on this Mac: no uploads, history storage, or administrator privileges are required.
+
+
 ## Troubleshooting
 
 ### “Codex CLI not found”
