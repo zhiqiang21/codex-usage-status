@@ -132,7 +132,7 @@ The **Developer storage** section measures these directories independently of Co
 ~/.codex
 ```
 
-Expand a directory to see versions or devices sorted by disk usage, with full paths and modification times. Simulator rows also show the device name, OS version, UDID, and current state. **Show in Finder** opens the item for further inspection. Unrecognized directories and auxiliary files remain visible as read-only items. The popover scrolls to fit the screen.
+Expand a directory to see versions or devices sorted by disk usage, with full paths and modification times. Simulator rows also show the device name, OS version, UDID, and current state. **Show in Finder** opens the item for further inspection. Unrecognized directories and auxiliary files remain visible as read-only items. The popover scrolls to fit the screen. The **Developer storage** section collapses automatically when the popover closes, so it reopens in its initial state.
 
 **iOS simulator runtimes** measure only the specified AssetsV2 directory without adding mounted-volume capacity. Asset metadata supplies version/build labels. The app uses `simctl runtime list --json` to match each package to exactly one system identifier. **Uninstall runtime** is enabled only for a ready, system-deletable runtime whose associated devices are known to be idle. Each runtime requires its own confirmation, listing affected devices and explaining that the runtime must be installed again to use them. Filesystem identity and live state are rechecked before `simctl runtime delete <identifier>`; the app never raw-deletes AssetsV2 data, explicitly shuts down a device, or automatically retries. If tools, permissions, or mapping checks fail, **Manage in Xcode** opens Xcode; continue to Settings → Components. Remaining assets are reported without falling back to filesystem deletion.
 
@@ -163,7 +163,7 @@ After cleanup, the app separately reports measured directory usage reduction and
 
 ## System monitoring
 
-The popover's System Status section shows startup disk capacity, estimated used memory, whole-machine CPU utilization, and upload/download speeds for the primary network interface. Monitoring works independently of Codex CLI, including when signed out or when quota requests fail.
+The popover's System Status section shows startup disk capacity, estimated used memory, whole-machine CPU utilization, and upload/download speeds for the primary network interface. Monitoring works independently of Codex CLI, including when signed out or when quota requests fail. **Developer storage**, **System Status**, and **System Monitoring Settings** appear together in that order; all three sections start collapsed, and clicking a header row expands or collapses it. Each collapses automatically when the popover closes.
 
 System Monitoring Settings provides separate **menu bar** and **details** switches for each of the five metrics. Changes take effect immediately and persist across launches. By default, all details are enabled and all menu bar metrics are disabled. Enabled menu bar metrics appear in disk, memory, CPU, network order. Upload and download share one column, with upload (↑) above download (↓); enabling only one shows just that row. Choose only the metrics that fit your menu bar.
 

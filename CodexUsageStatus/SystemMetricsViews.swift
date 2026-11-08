@@ -66,12 +66,15 @@ final class SystemMetricsVisibilityView: NSView {
 struct SystemMetricsDetailView: View {
     @ObservedObject var store: SystemMetricsStore
     @ObservedObject var settings: UserSettings
+    var showsHeader = true
 
     var body: some View {
         if !settings.systemMonitor.details.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Label("系统状态", systemImage: "desktopcomputer")
-                    .font(.subheadline.weight(.medium))
+                if showsHeader {
+                    Label("系统状态", systemImage: "desktopcomputer")
+                        .font(.subheadline.weight(.medium))
+                }
                 ForEach(SystemMetric.allCases.filter { settings.systemMonitor.details.contains($0) }) { metric in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -97,7 +100,6 @@ struct SystemMetricsDetailView: View {
                         .font(.caption2).foregroundStyle(.secondary)
                 }
             }
-            Divider()
         }
     }
 
@@ -122,10 +124,13 @@ struct SystemMetricsDetailView: View {
 
 struct SystemMonitorSettingsView: View {
     @ObservedObject var settings: UserSettings
+    var showsHeader = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("系统监控设置").font(.subheadline.weight(.medium))
+            if showsHeader {
+                Text("系统监控设置").font(.subheadline.weight(.medium))
+            }
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                 GridRow {
                     Text("指标")

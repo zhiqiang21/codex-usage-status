@@ -210,6 +210,8 @@ struct UsagePopoverView: View {
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
 
     @State private var isStorageExpanded = false
+    @State private var isSystemMetricsExpanded = false
+    @State private var isSystemMonitorSettingsExpanded = false
     @State private var showsConnectionSettings = false
 
     private let windowColumnWidth: CGFloat = 78
@@ -231,14 +233,10 @@ struct UsagePopoverView: View {
                 }
 
                 Divider()
-                SystemMetricsDetailView(store: systemMetricsStore, settings: settings)
-                    .padding(.top, settings.systemMonitor.details.isEmpty ? 0 : 12)
                 storageSection
-                Divider()
+                systemMetricsSection
+                systemMonitorSettingsSection
                 menuBarSettings
-                Divider()
-                SystemMonitorSettingsView(settings: settings)
-                    .padding(.vertical, 12)
                 Divider()
                 refreshSettings
                 appSettings
@@ -259,6 +257,10 @@ struct UsagePopoverView: View {
         .tint(.indigo)
         .background(UsagePopoverDismissObserver {
             storageStore.dismissOperationResult()
+            // 面板关闭时折叠各区块，下次打开恢复初始状态
+            isStorageExpanded = false
+            isSystemMetricsExpanded = false
+            isSystemMonitorSettingsExpanded = false
         })
         .task {
             store.refreshIfNeeded()
@@ -384,30 +386,72 @@ struct UsagePopoverView: View {
 
     private var storageSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button {
-                isStorageExpanded.toggle()
+            disclosureHeader("开发存储", systemImage: "internaldrive", isExpanded: $isStorageExpanded) {
                 storageStore.dismissOperationResult()
-            } label: {
-                HStack {
-                    Label("开发存储", systemImage: "internaldrive")
-                    Spacer()
-                    Image(systemName: isStorageExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .font(.system(size: 13))
-                .frame(minHeight: 36)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isStorageExpanded ? "折叠开发存储" : "展开开发存储")
 
             if isStorageExpanded {
                 DeveloperStorageView(store: storageStore, showsHeader: false)
                     .padding(.top, 4)
                     .padding(.bottom, 12)
             }
+            Divider()
         }
+    }
+
+    @ViewBuilder
+    private var systemMetricsSection: some View {
+        if !settings.systemMonitor.details.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                disclosureHeader("系统状态", systemImage: "desktopcomputer", isExpanded: $isSystemMetricsExpanded)
+
+                if isSystemMetricsExpanded {
+                    SystemMetricsDetailView(store: systemMetricsStore, settings: settings, showsHeader: false)
+                        .padding(.top, 4)
+                        .padding(.bottom, 12)
+                }
+                Divider()
+            }
+        }
+    }
+
+    private var systemMonitorSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            disclosureHeader("系统监控设置", systemImage: "slider.horizontal.3", isExpanded: $isSystemMonitorSettingsExpanded)
+
+            if isSystemMonitorSettingsExpanded {
+                SystemMonitorSettingsView(settings: settings, showsHeader: false)
+                    .padding(.top, 4)
+                    .padding(.bottom, 12)
+            }
+            Divider()
+        }
+    }
+
+    /// 可折叠区块的统一标题行：图标 + 标题 + 折叠指示箭头
+    private func disclosureHeader(
+        _ title: String,
+        systemImage: String,
+        isExpanded: Binding<Bool>,
+        onToggle: (() -> Void)? = nil
+    ) -> some View {
+        Button {
+            isExpanded.wrappedValue.toggle()
+            onToggle?()
+        } label: {
+            HStack {
+                Label(title, systemImage: systemImage)
+                Spacer()
+                Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .font(.system(size: 13))
+            .frame(minHeight: 36)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(isExpanded.wrappedValue ? "折叠" : "展开")\(title)")
     }
 
     private var menuBarSettings: some View {
