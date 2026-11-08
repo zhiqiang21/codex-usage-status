@@ -72,7 +72,7 @@ Codex Usage Status reuses the Codex CLI session. You do not need to enter an API
 
 ### 2. Read the menu bar display
 
-The menu bar uses two rows on a translucent glass-like background with a subtle border. Both windows are shown by default. Light appearance uses dark glyphs; dark appearance uses white glyphs and a dimmer glass tint:
+The menu bar uses two rows without an added background or outer border, with thin separators between groups. Both windows are shown by default. Light appearance uses dark glyphs; dark appearance uses white glyphs:
 
 - The clock icon identifies the remaining percentage in the 5-hour window. Its second row shows the local 24-hour reset time, such as `18:00`; a next-day reset is marked `明 01:00`.
 - The calendar icon identifies the remaining percentage in the weekly window. Its second row shows the reset date as `MM.dd`, such as `11.08`.

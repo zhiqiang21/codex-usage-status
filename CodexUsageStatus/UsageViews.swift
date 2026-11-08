@@ -143,26 +143,6 @@ struct UsageMenuBarGraphic: View {
         .padding(.horizontal, 8)
         .frame(height: 22)
         .foregroundStyle(colorScheme == .dark ? .white : .black.opacity(0.9))
-        .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(LinearGradient(
-                    colors: [
-                        .white.opacity(colorScheme == .dark ? 0.18 : 0.55),
-                        .white.opacity(colorScheme == .dark ? 0.08 : 0.30),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ))
-                .padding(.vertical, 1)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(
-                    colorScheme == .dark ? .white.opacity(0.28) : .black.opacity(0.14),
-                    lineWidth: 0.5
-                )
-                .padding(.vertical, 1)
-        }
     }
 
     private var networkSpeeds: some View {
