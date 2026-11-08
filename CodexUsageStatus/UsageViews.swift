@@ -123,14 +123,20 @@ struct UsageMenuBarGraphic: View {
                     minimumWidth: 30
                 )
             }
-            ForEach(SystemMetric.allCases.filter { systemMetrics.contains($0) }) { metric in
+            ForEach(SystemMetric.allCases.filter {
+                systemMetrics.contains($0) && $0 != .upload && $0 != .download
+            }) { metric in
                 separator
                 self.metric(
                     value: systemSnapshot.text(for: metric).compactText,
                     secondaryText: metric.title,
                     systemImage: metric.systemImage,
-                    minimumWidth: metric == .upload || metric == .download ? 66 : 38
+                    minimumWidth: 38
                 )
+            }
+            if !systemMetrics.isDisjoint(with: [.upload, .download]) {
+                separator
+                networkSpeeds
             }
         }
         .fixedSize()
@@ -157,6 +163,26 @@ struct UsageMenuBarGraphic: View {
                 )
                 .padding(.vertical, 1)
         }
+    }
+
+    private var networkSpeeds: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach([SystemMetric.upload, .download].filter { systemMetrics.contains($0) }) { metric in
+                HStack(spacing: 3) {
+                    Image(systemName: metric.systemImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 9, height: 9)
+                        .accessibilityHidden(true)
+                    Text(systemSnapshot.text(for: metric).compactText)
+                        .font(.system(size: 10, weight: .semibold))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
+                .frame(height: 10)
+            }
+        }
+        .frame(minWidth: 66, alignment: .leading)
     }
 
     private func metric(

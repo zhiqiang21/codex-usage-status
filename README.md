@@ -159,7 +159,7 @@ After cleanup, the app separately reports measured directory usage reduction and
 
 The popover's System Status section shows startup disk capacity, estimated used memory, whole-machine CPU utilization, and upload/download speeds for the primary network interface. Monitoring works independently of Codex CLI, including when signed out or when quota requests fail.
 
-System Monitoring Settings provides separate **menu bar** and **details** switches for each of the five metrics. Changes take effect immediately and persist across launches. By default, all details are enabled and all menu bar metrics are disabled. Enabled menu bar metrics appear in disk, memory, CPU, upload, download order; choose only the metrics that fit your menu bar.
+System Monitoring Settings provides separate **menu bar** and **details** switches for each of the five metrics. Changes take effect immediately and persist across launches. By default, all details are enabled and all menu bar metrics are disabled. Enabled menu bar metrics appear in disk, memory, CPU, network order. Upload and download share one column, with upload (↑) above download (↓); enabling only one shows just that row. Choose only the metrics that fit your menu bar.
 
 - Choose a **1, 2, or 5 second** system refresh interval (default: **2 seconds**), independently of Codex's 5/10/30/60 minute quota refresh.
 - Disk capacity refreshes every **30 seconds**, reading the startup data volume without scanning directories. External disks and disk I/O speeds are not included.
