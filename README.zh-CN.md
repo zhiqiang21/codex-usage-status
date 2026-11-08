@@ -2,6 +2,12 @@
 
 [English](README.md) | 简体中文
 
+
+| 状态栏 | 展开面板-1 | 展开面板-2 |
+| :---: | :---: | :---: |
+| <img src="./image/iShot_2026-11-08_15.48.58.png" width="50%"> | <img src="./image/iShot_2026-11-08_15.52.48.png" width="30%"> | <img src="./image/iShot_2026-11-08_15.53.04.png" width="30%"> |
+
+
 原生 macOS 菜单栏工具，通过本机 `codex app-server` 显示 Codex 的：
 
 - 5 小时和 7 天窗口的剩余百分比

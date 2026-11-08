@@ -2,6 +2,12 @@
 
 English | [简体中文](README.zh-CN.md)
 
+
+| Status Bar | Expand Panel 1 | Expand Panel 2 |
+| :---: | :---: | :---: |
+| <img src="./image/iShot_2026-11-08_15.48.58.png" width="50%"> | <img src="./image/iShot_2026-11-08_15.52.48.png" width="30%"> | <img src="./image/iShot_2026-11-08_15.53.04.png" width="30%"> |
+
+
 A native macOS menu bar utility that reads data from the local `codex app-server` and displays:
 
 - Remaining capacity in the 5-hour and 7-day windows
