@@ -1,6 +1,29 @@
 import Foundation
 
+enum MenuBarDisplayMode: String, CaseIterable, Identifiable, Sendable {
+    case fiveHour
+    case weekly
+    case both
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .fiveHour:
+            "5 小时"
+        case .weekly:
+            "一周"
+        case .both:
+            "两者都显示"
+        }
+    }
+
+    var showsFiveHour: Bool { self != .weekly }
+    var showsWeekly: Bool { self != .fiveHour }
+}
+
 enum RefreshInterval: Int, CaseIterable, Identifiable, Sendable {
+    case fiveMinutes = 300
     case tenMinutes = 600
     case thirtyMinutes = 1_800
     case oneHour = 3_600
@@ -9,6 +32,8 @@ enum RefreshInterval: Int, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
+        case .fiveMinutes:
+            "5 分钟"
         case .tenMinutes:
             "10 分钟"
         case .thirtyMinutes:
@@ -26,21 +51,41 @@ enum RefreshInterval: Int, CaseIterable, Identifiable, Sendable {
 @MainActor
 final class UserSettings: ObservableObject {
     private enum Key {
+        static let menuBarDisplayMode = "menuBarDisplayMode"
+        static let showsResetCreditsInMenuBar = "showsResetCreditsInMenuBar"
         static let refreshInterval = "refreshInterval"
         static let executablePath = "codexExecutablePath"
     }
 
     private let defaults: UserDefaults
 
+    @Published private(set) var menuBarDisplayMode: MenuBarDisplayMode
+    @Published private(set) var showsResetCreditsInMenuBar: Bool
     @Published private(set) var refreshInterval: RefreshInterval
     @Published private(set) var executablePath: String
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        menuBarDisplayMode = defaults.string(forKey: Key.menuBarDisplayMode)
+            .flatMap(MenuBarDisplayMode.init(rawValue:)) ?? .both
+        showsResetCreditsInMenuBar = defaults.object(forKey: Key.showsResetCreditsInMenuBar)
+            as? Bool ?? true
         refreshInterval = RefreshInterval(
             rawValue: defaults.integer(forKey: Key.refreshInterval)
         ) ?? .tenMinutes
         executablePath = defaults.string(forKey: Key.executablePath) ?? ""
+    }
+
+    func setMenuBarDisplayMode(_ mode: MenuBarDisplayMode) {
+        guard menuBarDisplayMode != mode else { return }
+        menuBarDisplayMode = mode
+        defaults.set(mode.rawValue, forKey: Key.menuBarDisplayMode)
+    }
+
+    func setShowsResetCreditsInMenuBar(_ isShown: Bool) {
+        guard showsResetCreditsInMenuBar != isShown else { return }
+        showsResetCreditsInMenuBar = isShown
+        defaults.set(isShown, forKey: Key.showsResetCreditsInMenuBar)
     }
 
     func setRefreshInterval(_ interval: RefreshInterval) {
@@ -62,15 +107,30 @@ final class UserSettings: ObservableObject {
     }
 }
 
-struct UsageSnapshot: Equatable, Sendable {
+struct UsageWindowSnapshot: Equatable, Sendable {
     let remainingPercent: Int
     let resetsAt: Date?
+}
+
+struct UsageSnapshot: Equatable, Sendable {
+    let weeklyWindow: UsageWindowSnapshot?
+    let fiveHourWindow: UsageWindowSnapshot?
     let resetCreditCount: Int?
     let updatedAt: Date
 
+    var resetDates: [Date] {
+        [weeklyWindow?.resetsAt, fiveHourWindow?.resetsAt].compactMap { $0 }
+    }
+
     static let preview = UsageSnapshot(
-        remainingPercent: 75,
-        resetsAt: Date().addingTimeInterval(3 * 24 * 60 * 60 + 3_600),
+        weeklyWindow: UsageWindowSnapshot(
+            remainingPercent: 75,
+            resetsAt: Date().addingTimeInterval(3 * 24 * 60 * 60 + 3_600)
+        ),
+        fiveHourWindow: UsageWindowSnapshot(
+            remainingPercent: 60,
+            resetsAt: Date().addingTimeInterval(2 * 3_600)
+        ),
         resetCreditCount: 1,
         updatedAt: Date()
     )
@@ -95,11 +155,14 @@ enum UsageViewState: Equatable, Sendable {
 struct UsageMenuBarPresentation: Equatable, Sendable {
     let remainingText: String
     let resetText: String
+    let fiveHourRemainingText: String
+    let fiveHourResetText: String
     let resetCreditText: String?
 
     static func make(
         from state: UsageViewState,
-        now: Date
+        now: Date,
+        calendar: Calendar = .current
     ) -> UsageMenuBarPresentation {
         guard let snapshot = state.snapshot else {
             return switch state {
@@ -107,80 +170,110 @@ struct UsageMenuBarPresentation: Equatable, Sendable {
                 UsageMenuBarPresentation(
                     remainingText: "…",
                     resetText: "…",
+                    fiveHourRemainingText: "…",
+                    fiveHourResetText: "…",
                     resetCreditText: nil
                 )
             case .failed, .loaded:
                 UsageMenuBarPresentation(
                     remainingText: "--%",
                     resetText: "--",
+                    fiveHourRemainingText: "--%",
+                    fiveHourResetText: "--",
                     resetCreditText: nil
                 )
             }
         }
 
         return UsageMenuBarPresentation(
-            remainingText: "\(snapshot.remainingPercent)%",
-            resetText: compactResetText(until: snapshot.resetsAt, now: now),
+            remainingText: snapshot.weeklyWindow.map { "\($0.remainingPercent)%" } ?? "--%",
+            resetText: resetLabel(
+                until: snapshot.weeklyWindow?.resetsAt, now: now,
+                calendar: calendar, style: .date
+            ),
+            fiveHourRemainingText: snapshot.fiveHourWindow.map { "\($0.remainingPercent)%" } ?? "--%",
+            fiveHourResetText: resetLabel(
+                until: snapshot.fiveHourWindow?.resetsAt, now: now,
+                calendar: calendar, style: .time
+            ),
             resetCreditText: snapshot.resetCreditCount.flatMap {
                 $0 > 0 ? String($0) : nil
             }
         )
     }
 
-    private static func compactResetText(
+    private enum ResetLabelStyle {
+        case time
+        case date
+    }
+
+    private static func resetLabel(
         until resetDate: Date?,
-        now: Date
+        now: Date,
+        calendar: Calendar,
+        style: ResetLabelStyle
     ) -> String {
         guard let resetDate else { return "--" }
 
-        let remainingSeconds = resetDate.timeIntervalSince(now)
-        guard remainingSeconds > 0 else { return "now" }
+        guard resetDate > now else { return "待重置" }
 
-        let totalMinutes = max(
-            Int(ceil(remainingSeconds / 60)),
-            1
-        )
-        let days = totalMinutes / (24 * 60)
-        let hours = totalMinutes % (24 * 60) / 60
-        let minutes = totalMinutes % 60
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
 
-        if days > 0 {
-            return hours > 0 ? "\(days)d \(hours)h" : "\(days)d"
+        if style == .date {
+            formatter.dateFormat = "MM.dd"
+            return formatter.string(from: resetDate)
         }
 
-        if hours > 0 {
-            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        formatter.dateFormat = "HH:mm"
+        if calendar.isDate(resetDate, inSameDayAs: now) {
+            return formatter.string(from: resetDate)
+        }
+        // Calendar arithmetic handles daylight-saving transitions and month/year
+        // boundaries without treating a local day as a fixed 86,400 seconds.
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+           calendar.isDate(resetDate, inSameDayAs: tomorrow) {
+            return "明 \(formatter.string(from: resetDate))"
         }
 
-        return "\(minutes)m"
+        formatter.dateFormat = "MM.dd HH:mm"
+        return formatter.string(from: resetDate)
     }
 }
 
 enum UsageSelectionError: LocalizedError, Equatable, Sendable {
-    case weeklyWindowUnavailable
+    case usageWindowsUnavailable
 
     var errorDescription: String? {
         switch self {
-        case .weeklyWindowUnavailable:
-            "Codex 未返回 7 天用量窗口"
+        case .usageWindowsUnavailable:
+            "Codex 未返回 5 小时或 7 天用量窗口"
         }
     }
 }
 
 enum UsageSnapshotBuilder {
     static let weeklyWindowDurationMinutes: Int64 = 10_080
+    static let fiveHourWindowDurationMinutes: Int64 = 300
 
     static func makeSnapshot(
         from response: GetAccountRateLimitsResponse,
         now: Date
     ) throws -> UsageSnapshot {
-        guard let window = selectWeeklyWindow(from: response) else {
-            throw UsageSelectionError.weeklyWindowUnavailable
+        let weeklyWindow = selectWeeklyWindow(from: response)
+        let fiveHourWindow = selectWindow(
+            from: response,
+            durationMinutes: fiveHourWindowDurationMinutes
+        )
+        guard weeklyWindow != nil || fiveHourWindow != nil else {
+            throw UsageSelectionError.usageWindowsUnavailable
         }
 
         return UsageSnapshot(
-            remainingPercent: remainingPercent(from: window.usedPercent),
-            resetsAt: window.resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+            weeklyWindow: weeklyWindow.map { windowSnapshot(from: $0) },
+            fiveHourWindow: fiveHourWindow.map { windowSnapshot(from: $0) },
             resetCreditCount: response.rateLimitResetCredits.flatMap {
                 safeNonnegativeInt($0.availableCount)
             },
@@ -193,17 +286,27 @@ enum UsageSnapshotBuilder {
         into snapshot: UsageSnapshot,
         now: Date
     ) -> UsageSnapshot {
-        guard update.rateLimits.limitId == nil || update.rateLimits.limitId == "codex",
-              let window = selectWeeklyWindow(in: update.rateLimits)
-        else {
+        guard update.rateLimits.limitId == nil || update.rateLimits.limitId == "codex" else {
             return snapshot
         }
 
+        let weeklyWindow = selectWindow(
+            in: update.rateLimits,
+            durationMinutes: weeklyWindowDurationMinutes
+        )
+        let fiveHourWindow = selectWindow(
+            in: update.rateLimits,
+            durationMinutes: fiveHourWindowDurationMinutes
+        )
+        guard weeklyWindow != nil || fiveHourWindow != nil else { return snapshot }
+
         return UsageSnapshot(
-            remainingPercent: remainingPercent(from: window.usedPercent),
-            resetsAt: window.resetsAt
-                .map { Date(timeIntervalSince1970: TimeInterval($0)) }
-                ?? snapshot.resetsAt,
+            weeklyWindow: weeklyWindow.map {
+                windowSnapshot(from: $0, preserving: snapshot.weeklyWindow)
+            } ?? snapshot.weeklyWindow,
+            fiveHourWindow: fiveHourWindow.map {
+                windowSnapshot(from: $0, preserving: snapshot.fiveHourWindow)
+            } ?? snapshot.fiveHourWindow,
             resetCreditCount: snapshot.resetCreditCount,
             updatedAt: now
         )
@@ -211,6 +314,13 @@ enum UsageSnapshotBuilder {
 
     static func selectWeeklyWindow(
         from response: GetAccountRateLimitsResponse
+    ) -> RateLimitWindow? {
+        selectWindow(from: response, durationMinutes: weeklyWindowDurationMinutes)
+    }
+
+    private static func selectWindow(
+        from response: GetAccountRateLimitsResponse,
+        durationMinutes: Int64
     ) -> RateLimitWindow? {
         var snapshots: [RateLimitSnapshot] = []
 
@@ -222,19 +332,30 @@ enum UsageSnapshotBuilder {
             snapshots.append(response.rateLimits)
         }
 
-        return snapshots.lazy.compactMap(selectWeeklyWindow(in:)).first
+        return snapshots.lazy.compactMap {
+            selectWindow(in: $0, durationMinutes: durationMinutes)
+        }.first
     }
 
-    private static func selectWeeklyWindow(
-        in snapshot: RateLimitSnapshot
+    private static func selectWindow(
+        in snapshot: RateLimitSnapshot,
+        durationMinutes: Int64
     ) -> RateLimitWindow? {
         [snapshot.primary, snapshot.secondary]
             .compactMap { $0 }
-            .first { $0.windowDurationMins == weeklyWindowDurationMinutes }
+            .first { $0.windowDurationMins == durationMinutes }
     }
 
-    private static func remainingPercent(from usedPercent: Int) -> Int {
-        min(max(100 - usedPercent, 0), 100)
+    private static func windowSnapshot(
+        from window: RateLimitWindow,
+        preserving previous: UsageWindowSnapshot? = nil
+    ) -> UsageWindowSnapshot {
+        UsageWindowSnapshot(
+            remainingPercent: 100 - min(max(window.usedPercent, 0), 100),
+            resetsAt: window.resetsAt
+                .map { Date(timeIntervalSince1970: TimeInterval($0)) }
+                ?? previous?.resetsAt
+        )
     }
 
     private static func safeNonnegativeInt(_ value: Int64) -> Int? {
@@ -253,11 +374,11 @@ enum RefreshPolicy {
 
     static func shouldRefresh(
         lastFullRefreshAt: Date?,
-        resetDate: Date?,
+        resetDates: [Date],
         now: Date,
         interval: RefreshInterval
     ) -> Bool {
-        if let resetDate, resetDate <= now {
+        if resetDates.contains(where: { $0 <= now }) {
             return true
         }
 
@@ -265,7 +386,11 @@ enum RefreshPolicy {
         return now.timeIntervalSince(lastFullRefreshAt) >= interval.timeInterval
     }
 
-    static func resetRefreshDate(for resetDate: Date?) -> Date? {
-        resetDate?.addingTimeInterval(2)
+    static func resetRefreshDate(for resetDates: [Date], now: Date) -> Date? {
+        // Skip timestamps the backend has not rolled forward yet, so an expired
+        // window cannot prevent the other window's future reset from refreshing.
+        resetDates.map { $0.addingTimeInterval(2) }
+            .filter { $0 > now }
+            .min()
     }
 }

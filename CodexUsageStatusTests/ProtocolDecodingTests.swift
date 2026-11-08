@@ -2,6 +2,37 @@ import XCTest
 @testable import CodexUsageStatus
 
 final class ProtocolDecodingTests: XCTestCase {
+    func testDecodesFiveHourAndWeeklyWindows() throws {
+        let data = Data(
+            """
+            {
+              "rateLimits": {
+                "limitId": "codex",
+                "primary": {
+                  "usedPercent": 80,
+                  "windowDurationMins": 300,
+                  "resetsAt": 1800
+                },
+                "secondary": {
+                  "usedPercent": 25,
+                  "windowDurationMins": 10080,
+                  "resetsAt": 2000
+                }
+              }
+            }
+            """.utf8
+        )
+        let response = try JSONDecoder().decode(GetAccountRateLimitsResponse.self, from: data)
+        let snapshot = try UsageSnapshotBuilder.makeSnapshot(
+            from: response, now: Date(timeIntervalSince1970: 1_000)
+        )
+
+        XCTAssertEqual(snapshot.fiveHourWindow?.remainingPercent, 20)
+        XCTAssertEqual(snapshot.fiveHourWindow?.resetsAt, Date(timeIntervalSince1970: 1_800))
+        XCTAssertEqual(snapshot.weeklyWindow?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.weeklyWindow?.resetsAt, Date(timeIntervalSince1970: 2_000))
+    }
+
     func testDecodesMultiBucketResponseAndAuthoritativeResetCount() throws {
         let data = Data(
             """
@@ -84,7 +115,8 @@ final class ProtocolDecodingTests: XCTestCase {
         )
 
         XCTAssertNil(snapshot.resetCreditCount)
-        XCTAssertNil(snapshot.resetsAt)
+        XCTAssertNil(snapshot.weeklyWindow?.resetsAt)
+        XCTAssertNil(snapshot.fiveHourWindow)
     }
 
     func testDecodesChatGPTAccount() throws {
@@ -130,9 +162,14 @@ final class ProtocolDecodingTests: XCTestCase {
             let response = try await client.readRateLimits()
 
             XCTAssertEqual(account.account?.type, "chatgpt")
-            XCTAssertNotNil(
-                UsageSnapshotBuilder.selectWeeklyWindow(from: response)
-            )
+            let snapshot = try UsageSnapshotBuilder.makeSnapshot(from: response, now: Date())
+            XCTAssertTrue(snapshot.weeklyWindow != nil || snapshot.fiveHourWindow != nil)
+            let codexLimits = response.rateLimitsByLimitId?["codex"] ?? response.rateLimits
+            if [codexLimits.primary, codexLimits.secondary]
+                .compactMap({ $0 })
+                .contains(where: { $0.windowDurationMins == 300 }) {
+                XCTAssertNotNil(snapshot.fiveHourWindow)
+            }
             await client.stop()
         } catch {
             await client.stop()

@@ -4,8 +4,8 @@ English | [简体中文](README.zh-CN.md)
 
 A native macOS menu bar utility that reads data from the local `codex app-server` and displays:
 
-- Remaining capacity in the rolling 7-day window
-- Time until the next reset
+- Remaining capacity in the 5-hour and 7-day windows
+- Time until each window resets
 - Available reset credits, shown only when the count is greater than zero
 
 The app is read-only. It does not consume reset credits or directly read or record Codex authentication files.
@@ -72,27 +72,23 @@ Codex Usage Status reuses the Codex CLI session. You do not need to enter an API
 
 ### 2. Read the menu bar display
 
-The menu bar uses a compact metric layout:
+The menu bar uses two rows on a translucent glass-like background with a subtle border. Both windows are shown by default. Light appearance uses dark glyphs; dark appearance uses white glyphs and a dimmer glass tint:
 
-```text
- 76%  │  1d 2h  │   2
- LEFT │  RESET  │ CARDS
-```
+- The clock icon identifies the remaining percentage in the 5-hour window. Its second row shows the local 24-hour reset time, such as `18:00`; a next-day reset is marked `明 01:00`.
+- The calendar icon identifies the remaining percentage in the weekly window. Its second row shows the reset date as `MM.dd`, such as `11.08`.
+- The card icon identifies available reset credits, with **重置卡** on its second row. The **显示重置卡次数** toggle defaults to on. This group is hidden when disabled, zero, or unavailable; the details popover still shows the count.
+- `…` means loading. `--%` / `--` means the quota or reset time is unavailable. **待重置** means the reset time has been reached and a backend update is pending. The other window remains visible.
 
-- `LEFT` is the remaining percentage in the rolling 7-day window.
-- `RESET` is the time until the next reset. It updates locally once per minute.
-- `CARDS` is the number of available reset credits. The entire column is hidden when the count is zero or unavailable.
-- `…` means the app is loading data.
-- `--` means data is currently unavailable. Click the menu bar area to see the error.
+Use **显示模式** (Display mode) to choose **5 小时** (5 hours), **一周** (weekly), or **全部** (both). Changes apply immediately and persist across launches. Hover over the status item for complete reset dates. Date labels and countdowns in the details table update locally once per minute.
 
 ### 3. View details
 
 Click the usage display in the menu bar to open the details popover. It includes:
 
-- Remaining weekly capacity and a progress bar
-- Relative and exact reset times
+- A compact Window / Remaining / Reset table with percentages, progress bars, and reset countdowns for both windows
+- Exact reset dates in countdown tooltips
 - Available reset credits
-- Last update and estimated next refresh times
+- Last update in the footer, with the next refresh time in its tooltip
 
 Use the refresh button in the upper-right corner to fetch fresh data immediately.
 
@@ -100,6 +96,7 @@ Use the refresh button in the upper-right corner to fetch fresh data immediately
 
 Choose one of the available intervals in the **Automatic refresh** section:
 
+- 5 minutes
 - 10 minutes, the default
 - 30 minutes
 - 1 hour
@@ -118,6 +115,7 @@ System Settings → General → Login Items & Extensions
 
 Click the usage display in the menu bar, then click **Quit** at the bottom of the popover.
 
+
 ## Troubleshooting
 
 ### “Codex CLI not found”
@@ -125,7 +123,7 @@ Click the usage display in the menu bar, then click **Quit** at the bottom of th
 Run `codex --version` in Terminal first. If Terminal can find it but the app cannot:
 
 1. Open the app popover.
-2. Find **Codex CLI**.
+2. Click the gear in the lower-right corner to expand **Codex CLI** settings.
 3. Click **Choose…**.
 4. Select the actual `codex` executable.
 
@@ -231,8 +229,8 @@ NOTARYTOOL_PROFILE="codex-usage-status-notary" \
 
 ## Refresh behavior
 
-- Available intervals are 10 minutes, 30 minutes, and 1 hour; the default is 10 minutes.
-- The menu bar reset countdown updates locally once per minute without making a network request.
+- Available intervals are 5 minutes, 10 minutes, 30 minutes, and 1 hour; the default is 10 minutes.
+- Reset countdowns in the details table update locally once per minute without making a network request.
 - A manual refresh recalculates the next scheduled refresh.
-- The app reconciles usage when the quota resets or after waking from sleep with stale data.
+- The app reconciles usage when either window resets or after waking from sleep with stale data.
 - `account/rateLimits/updated` notifications merge usage fields locally and do not bypass the selected polling interval.

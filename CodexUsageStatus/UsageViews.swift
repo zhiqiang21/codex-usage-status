@@ -3,87 +3,29 @@ import SwiftUI
 
 struct UsageMenuBarLabel: View {
     @ObservedObject var store: UsageStore
+    @ObservedObject var settings: UserSettings
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        content(at: store.menuBarNow)
-            .accessibilityLabel(accessibilityText)
-    }
-
-    private func content(at date: Date) -> some View {
         let presentation = UsageMenuBarPresentation.make(
             from: store.state,
-            now: date
+            now: store.menuBarNow
         )
 
-        return HStack(spacing: 5) {
-            metric(
-                value: presentation.remainingText,
-                label: "LEFT",
-                minimumWidth: 32
-            )
-
-            separator
-
-            metric(
-                value: presentation.resetText,
-                label: "RESET",
-                minimumWidth: 42
-            )
-
-            if let resetCreditText = presentation.resetCreditText {
-                separator
-                metric(
-                    value: resetCreditText,
-                    label: "CARDS",
-                    minimumWidth: 27
-                )
-            }
+        if let image = UsageMenuBarGraphic.render(
+            presentation: presentation,
+            displayMode: settings.menuBarDisplayMode,
+            showsResetCredits: settings.showsResetCreditsInMenuBar,
+            colorScheme: colorScheme
+        ) {
+            // Preserve the full metric layout as a single native status-item image.
+            Image(nsImage: image)
+                .renderingMode(.original)
+                .accessibilityLabel(accessibilityText)
+                .help(accessibilityText)
+        } else {
+            Text("Codex 用量不可用")
         }
-        .fixedSize()
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .foregroundStyle(.white)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.01, green: 0.53, blue: 0.76),
-                    Color(red: 0.03, green: 0.24, blue: 0.46),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            ),
-            in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(.white.opacity(0.18), lineWidth: 0.5)
-        }
-    }
-
-    private func metric(
-        value: String,
-        label: String,
-        minimumWidth: CGFloat
-    ) -> some View {
-        VStack(spacing: -1) {
-            Text(value)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-
-            Text(label)
-                .font(.system(size: 7, weight: .semibold, design: .rounded))
-                .tracking(0.35)
-                .opacity(0.92)
-        }
-        .frame(minWidth: minimumWidth)
-    }
-
-    private var separator: some View {
-        Rectangle()
-            .fill(.white.opacity(0.72))
-            .frame(width: 1, height: 19)
     }
 
     private var accessibilityText: String {
@@ -91,14 +33,141 @@ struct UsageMenuBarLabel: View {
             return "Codex 用量暂不可用"
         }
 
-        var parts = ["Codex 本周剩余 \(snapshot.remainingPercent)%"]
-        if let resetsAt = snapshot.resetsAt {
-            parts.append("重置时间 \(resetsAt.formatted())")
+        var parts = ["Codex 用量"]
+        for (title, window, isVisible) in [
+            ("5 小时", snapshot.fiveHourWindow, settings.menuBarDisplayMode.showsFiveHour),
+            ("7 天", snapshot.weeklyWindow, settings.menuBarDisplayMode.showsWeekly),
+        ] where isVisible {
+            if let window {
+                parts.append("\(title)剩余 \(window.remainingPercent)%")
+                if let resetsAt = window.resetsAt {
+                    parts.append("\(title)重置时间 \(resetsAt.formatted())")
+                }
+            } else {
+                parts.append("\(title)用量暂不可用")
+            }
         }
-        if let count = snapshot.resetCreditCount, count > 0 {
+        if settings.showsResetCreditsInMenuBar,
+           let count = snapshot.resetCreditCount, count > 0 {
             parts.append("\(count) 张重置卡")
         }
         return parts.joined(separator: "，")
+    }
+}
+
+struct UsageMenuBarGraphic: View {
+    let presentation: UsageMenuBarPresentation
+    let displayMode: MenuBarDisplayMode
+    let showsResetCredits: Bool
+    let colorScheme: ColorScheme
+
+    @MainActor
+    static func render(
+        presentation: UsageMenuBarPresentation,
+        displayMode: MenuBarDisplayMode,
+        showsResetCredits: Bool,
+        colorScheme: ColorScheme = .light
+    ) -> NSImage? {
+        let renderer = ImageRenderer(content: UsageMenuBarGraphic(
+            presentation: presentation,
+            displayMode: displayMode,
+            showsResetCredits: showsResetCredits,
+            colorScheme: colorScheme
+        ))
+        // Keep text sharp on Retina displays while preserving the 22-point size.
+        renderer.scale = max(NSScreen.screens.map(\.backingScaleFactor).max() ?? 1, 2)
+        return renderer.nsImage
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 7) {
+            if displayMode.showsFiveHour {
+                metric(
+                    value: presentation.fiveHourRemainingText,
+                    secondaryText: presentation.fiveHourResetText,
+                    systemImage: "clock"
+                )
+            }
+
+            if displayMode.showsWeekly {
+                if displayMode.showsFiveHour { separator }
+                metric(
+                    value: presentation.remainingText,
+                    secondaryText: presentation.resetText,
+                    systemImage: "calendar"
+                )
+            }
+
+            if showsResetCredits, let resetCreditText = presentation.resetCreditText {
+                separator
+                metric(
+                    value: resetCreditText,
+                    secondaryText: "重置卡",
+                    systemImage: "creditcard",
+                    minimumWidth: 30
+                )
+            }
+        }
+        .fixedSize()
+        .padding(.horizontal, 8)
+        .frame(height: 22)
+        .foregroundStyle(colorScheme == .dark ? .white : .black.opacity(0.9))
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(LinearGradient(
+                    colors: [
+                        .white.opacity(colorScheme == .dark ? 0.18 : 0.55),
+                        .white.opacity(colorScheme == .dark ? 0.08 : 0.30),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
+                .padding(.vertical, 1)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(
+                    colorScheme == .dark ? .white.opacity(0.28) : .black.opacity(0.14),
+                    lineWidth: 0.5
+                )
+                .padding(.vertical, 1)
+        }
+    }
+
+    private func metric(
+        value: String,
+        secondaryText: String,
+        systemImage: String,
+        minimumWidth: CGFloat = 44
+    ) -> some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 3) {
+                Image(systemName: systemImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 11, height: 11)
+                    .accessibilityHidden(true)
+                Text(value)
+                    .font(.system(size: 11, weight: .semibold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+            .frame(height: 12)
+
+            Text(secondaryText)
+                .font(.system(size: 7.5, weight: .medium))
+                .monospacedDigit()
+                .lineLimit(1)
+                .opacity(0.8)
+                .frame(height: 8)
+        }
+        .frame(minWidth: minimumWidth)
+    }
+
+    private var separator: some View {
+        Rectangle()
+            .fill(colorScheme == .dark ? .white.opacity(0.22) : .black.opacity(0.12))
+            .frame(width: 0.5, height: 16)
     }
 }
 
@@ -107,33 +176,39 @@ struct UsagePopoverView: View {
     @ObservedObject var settings: UserSettings
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
 
+    @State private var showsConnectionSettings = false
+
+    private let windowColumnWidth: CGFloat = 78
+    private let remainingColumnWidth: CGFloat = 76
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            header
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                Divider()
 
-            switch store.state {
-            case .idle, .loading:
-                loadingContent
-            case let .loaded(snapshot, isStale, message):
-                loadedContent(
-                    snapshot: snapshot,
-                    isStale: isStale,
-                    message: message
-                )
-            case let .failed(message):
-                failedContent(message: message)
+                switch store.state {
+                case .idle, .loading:
+                    loadingContent
+                case let .loaded(snapshot, isStale, message):
+                    loadedContent(snapshot: snapshot, isStale: isStale, message: message)
+                case let .failed(message):
+                    failedContent(message: message)
+                }
+
+                Divider()
+                menuBarSettings
+                refreshSettings
+                appSettings
+                Divider()
+                footer
             }
-
-            Divider()
-            refreshSettings
-
-            Divider()
-            appSettings
-
-            footer
+            .padding(16)
         }
-        .padding(16)
-        .frame(width: 340)
+        // A scroll viewport needs an explicit height when MenuBarExtra measures
+        // its window. Expanded connection settings scroll within it.
+        .frame(width: 340, height: min(460, (NSScreen.main?.visibleFrame.height ?? 800) - 80))
+        .tint(.indigo)
         .task {
             store.refreshIfNeeded()
             launchAtLoginController.refreshStatus()
@@ -142,34 +217,36 @@ struct UsagePopoverView: View {
 
     private var header: some View {
         HStack {
-            Label("Codex 用量", systemImage: "gauge.with.dots.needle.50percent")
-                .font(.headline)
+            Text("Codex 用量")
+                .font(.system(size: 17, weight: .semibold))
             Spacer()
             Button {
                 store.refreshManually()
             } label: {
                 if store.isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
+                    ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 15))
                 }
             }
             .buttonStyle(.plain)
+            .frame(width: 24, height: 24)
             .disabled(store.isRefreshing)
             .help("立即刷新")
             .accessibilityLabel("立即刷新")
         }
+        .padding(.bottom, 12)
     }
 
     private var loadingContent: some View {
         HStack(spacing: 10) {
-            ProgressView()
-                .controlSize(.small)
+            ProgressView().controlSize(.small)
             Text("正在读取 Codex 用量…")
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .font(.system(size: 13))
+        .frame(maxWidth: .infinity, minHeight: 130, alignment: .leading)
     }
 
     private func loadedContent(
@@ -177,196 +254,273 @@ struct UsagePopoverView: View {
         isStale: Bool,
         message: String?
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("本周剩余")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("\(snapshot.remainingPercent)%")
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                }
-
-                ProgressView(
-                    value: Double(snapshot.remainingPercent),
-                    total: 100
-                )
-                .tint(progressColor(for: snapshot.remainingPercent))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Text("窗口").frame(width: windowColumnWidth, alignment: .leading)
+                Text("剩余").frame(width: remainingColumnWidth, alignment: .leading)
+                Text("重置").frame(maxWidth: .infinity, alignment: .leading)
             }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 10)
 
-            metricRow(
-                title: "重置时间",
-                systemImage: "clock",
-                content: resetTimeView(snapshot.resetsAt)
-            )
-
-            metricRow(
-                title: "重置卡",
-                systemImage: "arrow.counterclockwise.circle",
-                content: Text(
-                    snapshot.resetCreditCount.map { "\($0) 张" } ?? "未知"
-                )
-                .monospacedDigit()
-            )
-
-            if isStale || message != nil {
-                statusMessage(
-                    message ?? "数据可能已过期",
-                    color: .orange
-                )
-            }
+            Divider()
+            quotaRow(title: "5 小时", systemImage: "clock", window: snapshot.fiveHourWindow)
+            Divider().opacity(0.5)
+            quotaRow(title: "一周", systemImage: "calendar", window: snapshot.weeklyWindow)
+            Divider()
 
             HStack {
-                Text("更新于 \(shortTime(snapshot.updatedAt))")
+                Label("重置卡", systemImage: "creditcard")
                 Spacer()
-                if let nextRefreshAt = store.nextRefreshAt {
-                    Text("下次 \(shortTime(nextRefreshAt))")
-                }
+                Text(snapshot.resetCreditCount.map { "\($0) 次" } ?? "未知")
+                    .monospacedDigit()
             }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
+            .font(.system(size: 13))
+            .padding(.vertical, 12)
+
+            if isStale || message != nil {
+                statusMessage(message ?? "数据可能已过期", color: .orange)
+                    .padding(.bottom, 10)
+            }
         }
     }
 
-    private func failedContent(message: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            statusMessage(message, color: .red)
-            Button("重试") {
-                store.refreshManually()
+    private func quotaRow(
+        title: String,
+        systemImage: String,
+        window: UsageWindowSnapshot?
+    ) -> some View {
+        HStack(spacing: 10) {
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: systemImage).frame(width: 16)
             }
-            .disabled(store.isRefreshing)
+            .font(.system(size: 13))
+            .frame(width: windowColumnWidth, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(window.map { "\($0.remainingPercent)%" } ?? "--%")
+                    .font(.system(size: 14, weight: .semibold))
+                    .monospacedDigit()
+                if let window {
+                    ProgressView(value: Double(window.remainingPercent), total: 100)
+                        .progressViewStyle(.linear)
+                        .tint(progressColor(for: window.remainingPercent))
+                        .frame(height: 3)
+                        .accessibilityLabel("\(title)剩余用量")
+                }
+            }
+            .frame(width: remainingColumnWidth, alignment: .leading)
+
+            Text(resetTimeText(window?.resetsAt))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(window?.resetsAt?.formatted() ?? "Codex 未返回重置时间")
         }
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .frame(minHeight: 50)
+        .help(window == nil ? "Codex 未返回\(title)用量窗口" : "\(title)用量")
+    }
+
+    private var menuBarSettings: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("显示模式")
+                Spacer(minLength: 8)
+                Picker("状态栏用量窗口", selection: Binding(
+                    get: { settings.menuBarDisplayMode },
+                    set: { settings.setMenuBarDisplayMode($0) }
+                )) {
+                    ForEach(MenuBarDisplayMode.allCases) { mode in
+                        Text(mode == .both ? "全部" : mode.title).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .controlSize(.small)
+                .frame(width: 196)
+            }
+            .frame(minHeight: 42)
+
+            HStack {
+                Text("显示重置卡次数")
+                Spacer()
+                Toggle("显示重置卡次数", isOn: Binding(
+                    get: { settings.showsResetCreditsInMenuBar },
+                    set: { settings.setShowsResetCreditsInMenuBar($0) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+            }
+            .frame(minHeight: 34)
+        }
+        .font(.system(size: 13))
     }
 
     private var refreshSettings: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack {
             Text("自动刷新")
-                .font(.subheadline.weight(.medium))
-
-            Picker(
-                "自动刷新频率",
-                selection: Binding(
-                    get: { settings.refreshInterval },
-                    set: { store.setRefreshInterval($0) }
-                )
-            ) {
+            Spacer()
+            Picker("自动刷新频率", selection: Binding(
+                get: { settings.refreshInterval },
+                set: { store.setRefreshInterval($0) }
+            )) {
                 ForEach(RefreshInterval.allCases) { interval in
                     Text(interval.title).tag(interval)
                 }
             }
             .labelsHidden()
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .frame(width: 100)
         }
+        .font(.system(size: 13))
+        .frame(minHeight: 34)
     }
 
     private var appSettings: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle(
-                "登录时启动",
-                isOn: Binding(
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("登录时启动")
+                Spacer()
+                Toggle("登录时启动", isOn: Binding(
                     get: { launchAtLoginController.isEnabled },
                     set: { launchAtLoginController.setEnabled($0) }
-                )
-            )
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+            }
+            .frame(minHeight: 34)
 
             if launchAtLoginController.requiresApproval {
                 HStack {
                     Text("需要在系统设置中批准登录项")
-                        .font(.caption)
                         .foregroundStyle(.orange)
                     Spacer()
-                    Button("打开设置") {
-                        launchAtLoginController.openSystemSettings()
-                    }
-                    .controlSize(.small)
+                    Button("打开设置") { launchAtLoginController.openSystemSettings() }
+                        .controlSize(.small)
                 }
+                .font(.caption)
+                .padding(.bottom, 8)
             }
 
             if let errorMessage = launchAtLoginController.errorMessage {
                 Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .padding(.bottom, 8)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Codex CLI")
-                    .font(.subheadline.weight(.medium))
-
-                Text(executablePathText)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(executablePathText)
-
-                HStack {
-                    Button("自动检测") {
-                        store.setExecutablePath(nil)
-                    }
-                    .controlSize(.small)
-
-                    Button("选择…") {
-                        chooseCodexExecutable()
-                    }
-                    .controlSize(.small)
-                }
+            if showsConnectionSettings {
+                connectionSettings
+                    .padding(.vertical, 10)
             }
         }
+        .font(.system(size: 13))
+        .padding(.bottom, 6)
+    }
+
+    private var connectionSettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Codex CLI").font(.subheadline.weight(.medium))
+            Text(executablePathText)
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(executablePathText)
+            HStack {
+                Button("自动检测") { store.setExecutablePath(nil) }
+                Button("选择…") { chooseCodexExecutable() }
+            }
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var footer: some View {
-        HStack {
-            Text("只读模式")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+        HStack(spacing: 6) {
+            Circle().fill(statusColor).frame(width: 6, height: 6)
+                .accessibilityHidden(true)
+            Text(updateText)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .help(store.nextRefreshAt.map { "下次刷新 \(shortTime($0))" } ?? "等待刷新")
             Spacer()
-            Button("退出") {
-                NSApplication.shared.terminate(nil)
+            Button {
+                showsConnectionSettings.toggle()
+            } label: {
+                Image(systemName: "gearshape")
             }
+            .help("Codex CLI 设置")
+            .accessibilityLabel("Codex CLI 设置")
+            .accessibilityValue(showsConnectionSettings ? "已展开" : "已折叠")
+
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Image(systemName: "power")
+            }
+            .help("退出 Codex Usage Status")
+            .accessibilityLabel("退出")
             .keyboardShortcut("q")
+        }
+        .font(.system(size: 13))
+        .buttonStyle(.plain)
+        .padding(.top, 12)
+    }
+
+    private var updateText: String {
+        guard let snapshot = store.state.snapshot else {
+            return store.isRefreshing ? "正在刷新…" : "用量暂不可用"
+        }
+        if store.menuBarNow.timeIntervalSince(snapshot.updatedAt) < 60 {
+            return "刚刚更新"
+        }
+        return "更新于 \(shortTime(snapshot.updatedAt))"
+    }
+
+    private var statusColor: Color {
+        switch store.state {
+        case let .loaded(_, isStale, _): isStale ? .orange : .green
+        case .failed: .red
+        case .idle, .loading: .secondary
         }
     }
 
     private var executablePathText: String {
-        if !settings.executablePath.isEmpty {
-            return settings.executablePath
-        }
+        if !settings.executablePath.isEmpty { return settings.executablePath }
         return store.resolvedExecutablePath ?? "自动检测"
     }
 
-    @ViewBuilder
-    private func resetTimeView(_ resetDate: Date?) -> some View {
-        if let resetDate {
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(resetDate, style: .relative)
-                Text(resetDate.formatted(
-                    .dateTime
-                        .month(.abbreviated)
-                        .day()
-                        .hour()
-                        .minute()
-                ))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-        } else {
-            Text("未知")
-        }
+    private func resetTimeText(_ resetDate: Date?) -> String {
+        guard let resetDate else { return "未知" }
+        let seconds = resetDate.timeIntervalSince(store.menuBarNow)
+        guard seconds > 0 else { return "待重置" }
+        let totalMinutes = max(Int(ceil(seconds / 60)), 1)
+        let days = totalMinutes / 1_440
+        let hours = totalMinutes % 1_440 / 60
+        let minutes = totalMinutes % 60
+        if days > 0 { return hours > 0 ? "\(days) 天 \(hours) 小时" : "\(days) 天" }
+        if hours > 0 { return minutes > 0 ? "\(hours) 小时 \(minutes) 分钟" : "\(hours) 小时" }
+        return "\(minutes) 分钟"
     }
 
-    private func metricRow<Content: View>(
-        title: String,
-        systemImage: String,
-        content: Content
-    ) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Label(title, systemImage: systemImage)
-                .foregroundStyle(.secondary)
-            Spacer()
-            content
+    private func failedContent(message: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            statusMessage(message, color: .red)
+            Button("重试") { store.refreshManually() }
+                .disabled(store.isRefreshing)
+                .controlSize(.small)
         }
+        .frame(maxWidth: .infinity, minHeight: 130, alignment: .leading)
     }
 
     private func statusMessage(_ message: String, color: Color) -> some View {
@@ -378,12 +532,9 @@ struct UsagePopoverView: View {
 
     private func progressColor(for remainingPercent: Int) -> Color {
         switch remainingPercent {
-        case 0..<20:
-            .red
-        case 20..<40:
-            .orange
-        default:
-            .accentColor
+        case 0..<20: .red
+        case 20..<40: .orange
+        default: .indigo
         }
     }
 
@@ -400,12 +551,9 @@ struct UsagePopoverView: View {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.treatsFilePackagesAsDirectories = true
-
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            Task { @MainActor in
-                store.setExecutablePath(url.path)
-            }
+            Task { @MainActor in store.setExecutablePath(url.path) }
         }
     }
 }

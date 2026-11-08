@@ -178,7 +178,7 @@ final class UsageStore: ObservableObject {
             recoveryTask?.cancel()
             recoveryTask = nil
             schedulePeriodicRefresh(from: refreshDate)
-            scheduleResetRefresh(for: snapshot.resetsAt)
+            scheduleResetRefresh(for: snapshot.resetDates)
         } catch is CancellationError {
             return
         } catch {
@@ -252,7 +252,7 @@ final class UsageStore: ObservableObject {
                     isStale: false,
                     message: nil
                 )
-                scheduleResetRefresh(for: merged.resetsAt)
+                scheduleResetRefresh(for: merged.resetDates)
             }
 
         case let .disconnected(exitCode):
@@ -339,11 +339,11 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    private func scheduleResetRefresh(for resetDate: Date?) {
+    private func scheduleResetRefresh(for resetDates: [Date]) {
         resetTask?.cancel()
         resetTask = nil
 
-        guard let targetDate = RefreshPolicy.resetRefreshDate(for: resetDate) else {
+        guard let targetDate = RefreshPolicy.resetRefreshDate(for: resetDates, now: now()) else {
             return
         }
         let delay = targetDate.timeIntervalSince(now())
@@ -394,7 +394,7 @@ final class UsageStore: ObservableObject {
     private func shouldRefresh(at date: Date) -> Bool {
         RefreshPolicy.shouldRefresh(
             lastFullRefreshAt: lastFullRefreshAt,
-            resetDate: state.snapshot?.resetsAt,
+            resetDates: state.snapshot?.resetDates ?? [],
             now: date,
             interval: settings.refreshInterval
         )

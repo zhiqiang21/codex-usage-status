@@ -26,7 +26,7 @@ struct CodexUsageStatusApp: App {
                 launchAtLoginController: launchAtLoginController
             )
         } label: {
-            UsageMenuBarLabel(store: usageStore)
+            UsageMenuBarLabel(store: usageStore, settings: settings)
         }
         .menuBarExtraStyle(.window)
     }
