@@ -1,5 +1,10 @@
 #!/bin/zsh
 
+# Explicit sh/bash invocation bypasses the shebang; restore the required shell.
+if [ -z "${ZSH_VERSION:-}" ]; then
+  exec /bin/zsh "$0" "$@"
+fi
+
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"

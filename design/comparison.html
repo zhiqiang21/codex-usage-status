@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Codex Usage Status · 设计对照</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#e9eaed;color:#242429;font:14px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}main{max-width:1000px;margin:24px auto;padding:0 20px}h1{font-size:20px;margin:0 0 8px}p{color:#60616a;margin:8px 0 20px}.pair{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}section{width:340px}h2{font-size:13px;font-weight:600}.reference{position:relative;width:340px;height:460px;overflow:hidden;background:#f9f9fb;border-radius:14px}.reference img{position:absolute;max-width:none;width:494px;height:auto;left:-76px;top:-143px}.panel{display:block;width:340px;height:460px;border-radius:12px}.status{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-top:26px}.status img{max-width:100%;height:38px;object-fit:contain}small{display:block;color:#666;margin-top:12px;line-height:1.6}a{color:#4547c7}
+</style>
+<main>
+<h1>紧凑面板与双行玻璃状态栏</h1><p>示例数据。左侧为选定设计稿的面板区域，右侧为 340 × 460 pt 原生组件渲染。状态栏按最新要求采用百分比＋重置日期双行布局，并保留半透明底色与边框。</p>
+<div class="pair"><section><h2>选定设计</h2><div class="reference"><img src="compact-ledger-reference.png" alt="选定组合稿"></div></section><section><h2>原生实现 · 浅色</h2><img class="panel" src="panel-light.png" alt="浅色原生面板"></section></div>
+<div class="status"><section><h2>状态栏 · 浅色</h2><img src="status-light.png" alt="浅色玻璃状态栏"></section><section><h2>状态栏 · 暗黑</h2><img src="status-dark.png" alt="暗黑玻璃状态栏"></section></div>
+<small>这是截图对照，不是交互原型。原生点击和滚动自动检查尚未获授权。<a href="panel-dark.png">查看暗黑面板</a> · <a href="status-two-line-reference.png">双行日期格式参考</a></small>
+</main></html>
