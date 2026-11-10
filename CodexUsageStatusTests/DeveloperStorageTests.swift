@@ -1089,7 +1089,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
         XCTAssertEqual(store.snapshots[.deviceSupport]?.allocatedBytes, 100)
         XCTAssertTrue(store.isStale(.deviceSupport))
         XCTAssertEqual(store.refreshErrors[.deviceSupport], "denied")
-        XCTAssertEqual(store.trendSnapshots[.deviceSupport]?.series(for: .day).points.map(\.bytes), [100])
+        XCTAssertEqual(store.trendSnapshots[.deviceSupport]?.series(for: .week).points.map(\.bytes), [100])
     }
 
     func testPermissionGuidanceTracksLatestFailureEvenWhenDisplayingRetainedData() async throws {
@@ -1175,7 +1175,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
             directoryReduction: 100, volumeAvailableChange: 80))
         try await waitUntil { !store.isBusy }
         XCTAssertEqual(store.snapshots[.deviceSupport]?.allocatedBytes, 0)
-        XCTAssertEqual(store.trendSnapshots[.deviceSupport]?.series(for: .day).points.last?.bytes, 0)
+        XCTAssertEqual(store.trendSnapshots[.deviceSupport]?.series(for: .week).points.last?.bytes, 0)
         XCTAssertFalse(store.operationFailed)
         XCTAssertNotNil(store.operationMessage)
     }

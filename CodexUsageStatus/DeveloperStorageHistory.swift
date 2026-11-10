@@ -1,19 +1,17 @@
 import Foundation
 
 enum StorageTrendPeriod: String, CaseIterable, Identifiable, Sendable {
-    case day, week, month
+    case week, month
 
     var id: Self { self }
     var title: String {
         switch self {
-        case .day: "天"
         case .week: "周"
         case .month: "月"
         }
     }
     var duration: TimeInterval {
         switch self {
-        case .day: 24 * 3600
         case .week: 7 * 24 * 3600
         case .month: 30 * 24 * 3600
         }
@@ -40,7 +38,7 @@ struct StorageSizeHistory: Codable, Equatable, Sendable {
     // changes while bounding disk usage. Never interpolate or zero-fill.
     mutating func compact(now: Date) {
         let cutoff = now.addingTimeInterval(-StorageTrendPeriod.month.duration)
-        let detailedCutoff = now.addingTimeInterval(-StorageTrendPeriod.day.duration)
+        let detailedCutoff = now.addingTimeInterval(-24 * 3600)
         var buckets: [Int64: StorageSizeSample] = [:]
         var firstSamples: [Int64: StorageSizeSample] = [:]
         for sample in samples.sorted(by: { $0.date < $1.date }) {
@@ -106,20 +104,17 @@ struct StorageTrendSnapshot: Equatable, Sendable {
 
     let id = UUID()
     let endingAt: Date
-    private let day: StorageTrendSeries
     private let week: StorageTrendSeries
     private let month: StorageTrendSeries
 
     init(samples: [StorageSizeSample], endingAt: Date) {
         self.endingAt = endingAt
-        day = StorageTrendSeries(samples: samples, period: .day, endingAt: endingAt)
         week = StorageTrendSeries(samples: samples, period: .week, endingAt: endingAt)
         month = StorageTrendSeries(samples: samples, period: .month, endingAt: endingAt)
     }
 
     func series(for period: StorageTrendPeriod) -> StorageTrendSeries {
         switch period {
-        case .day: day
         case .week: week
         case .month: month
         }

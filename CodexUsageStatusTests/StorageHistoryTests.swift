@@ -11,7 +11,7 @@ final class StorageHistoryTests: XCTestCase {
             scannedAt: date, issues: issues, isMissing: missing, notice: nil)
     }
 
-    func testPeriodsUseRolling24Hours7DaysAnd30DaysWithoutInventingSamples() {
+    func testPeriodsUseRolling7DaysAnd30DaysWithoutInventingSamples() {
         let history = StorageSizeHistory(path: "/test", samples: [
             StorageSizeSample(date: now.addingTimeInterval(-31 * 86400), bytes: 10),
             StorageSizeSample(date: now.addingTimeInterval(-30 * 86400), bytes: 20),
@@ -20,7 +20,6 @@ final class StorageHistoryTests: XCTestCase {
             StorageSizeSample(date: now, bytes: 50),
             StorageSizeSample(date: now.addingTimeInterval(1), bytes: 60)
         ])
-        XCTAssertEqual(history.samples(in: .day, endingAt: now).map(\.bytes), [40, 50])
         XCTAssertEqual(history.samples(in: .week, endingAt: now).map(\.bytes), [30, 40, 50])
         XCTAssertEqual(history.samples(in: .month, endingAt: now).map(\.bytes), [20, 30, 40, 50])
     }
@@ -55,12 +54,12 @@ final class StorageHistoryTests: XCTestCase {
 
     func testSmallChartKeepsAllMeasurementsAndExcludesOutOfRangeSamples() {
         let samples = [
-            StorageSizeSample(date: now.addingTimeInterval(-86401), bytes: 999),
-            StorageSizeSample(date: now.addingTimeInterval(-86400), bytes: 100),
+            StorageSizeSample(date: now.addingTimeInterval(-7 * 86400 - 1), bytes: 999),
+            StorageSizeSample(date: now.addingTimeInterval(-7 * 86400), bytes: 100),
             StorageSizeSample(date: now, bytes: 0),
             StorageSizeSample(date: now.addingTimeInterval(1), bytes: 999)
         ]
-        let series = StorageTrendSeries(samples: samples, period: .day, endingAt: now)
+        let series = StorageTrendSeries(samples: samples, period: .week, endingAt: now)
         XCTAssertEqual(series.points, Array(samples[1...2]))
         XCTAssertEqual(series.sampleCount, 2)
         XCTAssertEqual(series.latestSizeText, StorageSizeFormatter.string(0))
@@ -79,7 +78,7 @@ final class StorageHistoryTests: XCTestCase {
         let updated = await repository.record(snapshot(now.addingTimeInterval(60), bytes: 0), now: now.addingTimeInterval(60))
         XCTAssertNotEqual(updated.trends[.deviceSupport]?.id, original.id)
         XCTAssertEqual(updated.trends[.simulators]?.id, other.trends[.simulators]?.id)
-        XCTAssertEqual(updated.trends[.deviceSupport]?.series(for: .day).points.last?.bytes, 0)
+        XCTAssertEqual(updated.trends[.deviceSupport]?.series(for: .week).points.last?.bytes, 0)
     }
 
     func testCompactionPreservesImmediateChangesAndBoundsHistory() {

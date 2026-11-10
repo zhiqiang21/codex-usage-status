@@ -133,6 +133,10 @@ struct DeveloperStorageView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+            if expanded.contains(kind) {
+                StorageTrendView(kind: kind, snapshot: store.trendSnapshots[kind] ?? .empty)
+                    .equatable()
+            }
             if let description = kind.monitoringDescription {
                 Text(description).font(.caption2).foregroundStyle(.secondary)
             }
@@ -189,10 +193,6 @@ struct DeveloperStorageView: View {
             } else if store.refreshing.contains(kind) {
                 Text("正在统计磁盘占用…")
                     .font(.caption2).foregroundStyle(.secondary)
-            }
-            if expanded.contains(kind) {
-                StorageTrendView(kind: kind, snapshot: store.trendSnapshots[kind] ?? .empty)
-                    .equatable()
             }
         }
         .padding(8)

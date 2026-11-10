@@ -325,16 +325,18 @@ struct UsagePopoverView: View {
             quotaRow(title: "5 小时", systemImage: "clock", window: snapshot.fiveHourWindow)
             Divider().opacity(0.5)
             quotaRow(title: "一周", systemImage: "calendar", window: snapshot.weeklyWindow)
-            Divider()
 
-            HStack {
-                Label("重置卡", systemImage: "creditcard")
-                Spacer()
-                Text(snapshot.resetCreditCount.map { "\($0) 次" } ?? "未知")
-                    .monospacedDigit()
+            if snapshot.resetCreditCount != 0 {
+                Divider()
+                HStack {
+                    Label("重置卡", systemImage: "creditcard")
+                    Spacer()
+                    Text(snapshot.resetCreditCount.map { "\($0) 次" } ?? "未知")
+                        .monospacedDigit()
+                }
+                .font(.system(size: 13))
+                .padding(.vertical, 12)
             }
-            .font(.system(size: 13))
-            .padding(.vertical, 12)
 
             if isStale || message != nil {
                 statusMessage(message ?? "数据可能已过期", color: .orange)

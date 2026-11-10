@@ -4,9 +4,9 @@ import SwiftUI
 struct StorageTrendView: View, Equatable {
     let kind: DeveloperStorageKind
     let snapshot: StorageTrendSnapshot
-    @State private var period: StorageTrendPeriod = .day
+    @State private var period: StorageTrendPeriod = .week
 
-    init(kind: DeveloperStorageKind, snapshot: StorageTrendSnapshot, period: StorageTrendPeriod = .day) {
+    init(kind: DeveloperStorageKind, snapshot: StorageTrendSnapshot, period: StorageTrendPeriod = .week) {
         self.kind = kind
         self.snapshot = snapshot
         _period = State(initialValue: period)
@@ -35,8 +35,8 @@ struct StorageTrendView: View, Equatable {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 132)
-                .help("最近 24 小时、7 天或 30 天")
+                .frame(width: 88)
+                .help("最近 7 天或 30 天")
                 .accessibilityLabel("\(kind.title)趋势时间范围")
             }
             if let latestSizeText = series.latestSizeText {
@@ -71,7 +71,7 @@ struct StorageTrendView: View, Equatable {
                     AxisTick()
                     AxisValueLabel(anchor: value.index == 0 ? .topLeading : value.index == 2 ? .topTrailing : .top) {
                         if let date = value.as(Date.self) {
-                            Text(date.formatted(period == .day ? .dateTime.hour().minute() : .dateTime.month().day()))
+                            Text(date.formatted(.dateTime.month().day()))
                                 .font(.system(size: 9))
                         }
                     }
@@ -98,7 +98,7 @@ struct StorageTrendView: View, Equatable {
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
                 }
             }
-            .accessibilityLabel("\(kind.title)最近\(period == .day ? "24 小时" : period == .week ? "7 天" : "30 天")体积趋势")
+            .accessibilityLabel("\(kind.title)最近\(period == .week ? "7 天" : "30 天")体积趋势")
             Text(series.sampleCount == 1 ? "已记录 1 次扫描，后续扫描后形成曲线。" : "仅记录完整扫描；曲线连接采样点，未扫描时段无实测数据。")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
