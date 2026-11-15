@@ -71,35 +71,35 @@ enum CodexAppServerError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .executableNotFound:
-            "未找到 Codex CLI，请在设置中选择 codex 可执行文件"
+            L10n.tr("Codex CLI not found. Choose the codex executable in Settings")
         case let .executableNotRunnable(path):
-            "Codex CLI 不可执行：\(path)"
+            L10n.tr("Codex CLI is not executable: %@", "\(path)")
         case .launchFailed:
-            "无法启动 Codex App Server"
+            L10n.tr("Unable to start Codex App Server")
         case let .disconnected(code):
-            code.map { "Codex App Server 已退出（\($0)）" }
-                ?? "Codex App Server 连接已断开"
+            code.map { L10n.tr("Codex App Server exited (%@)", "\($0)") }
+                ?? L10n.tr("Codex App Server disconnected")
         case let .requestTimedOut(method):
-            "Codex 请求超时：\(method)"
+            L10n.tr("Codex request timed out: %@", "\(method)")
         case let .server(_, message):
             sanitizedServerMessage(message)
         case .invalidResponse:
-            "Codex App Server 返回了无法识别的数据"
+            L10n.tr("Codex App Server returned unrecognized data")
         case .notAuthenticated:
-            "请先在 Codex CLI 中登录 ChatGPT 账户"
+            L10n.tr("Sign in to a ChatGPT account in Codex CLI first")
         case let .unsupportedAccount(type):
-            "当前 Codex 登录方式不支持账户用量查询：\(type)"
+            L10n.tr("This Codex sign-in method does not support account usage queries: %@", "\(type)")
         }
     }
 
     private func sanitizedServerMessage(_ message: String) -> String {
         let lowered = message.lowercased()
         if lowered.contains("not logged in") || lowered.contains("authentication") {
-            return "请先在 Codex CLI 中登录 ChatGPT 账户"
+            return L10n.tr("Sign in to a ChatGPT account in Codex CLI first")
         }
         if lowered.contains("method not found") {
-            return "当前 Codex CLI 版本不支持用量查询，请升级 Codex"
+            return L10n.tr("This Codex CLI version does not support usage queries. Upgrade Codex")
         }
-        return "Codex App Server 请求失败"
+        return L10n.tr("Codex App Server request failed")
     }
 }

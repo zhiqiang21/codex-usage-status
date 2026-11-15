@@ -99,8 +99,8 @@ final class DeveloperStorageTests: XCTestCase {
         let scan = await DeveloperStorageService(home: home, commands: commands).scan(.codexData)
         XCTAssertTrue(scan.isComplete)
         XCTAssertEqual(scan.entries.count, 4)
-        XCTAssertEqual(scan.entries.first?.displayName, "归档会话")
-        XCTAssertEqual(scan.entries.first { $0.name == "generated_images" }?.displayName, "生成图片")
+        XCTAssertEqual(scan.entries.first?.displayName, L10n.tr("Archived Sessions"))
+        XCTAssertEqual(scan.entries.first { $0.name == "generated_images" }?.displayName, L10n.tr("Generated Images"))
         XCTAssertTrue(scan.entries.allSatisfy { $0.manifest == nil && !$0.canClean && $0.modifiedAt != nil })
         XCTAssertTrue(commands.invocations.isEmpty)
     }
@@ -153,7 +153,7 @@ final class DeveloperStorageTests: XCTestCase {
                 issues: [], device: nil, cleanupUnavailableReason: nil)
             XCTAssertFalse(entry.canClean)
             do { _ = try await service.clean(entry); XCTFail("Read-only categories cannot be cleaned") }
-            catch { XCTAssertTrue(error.localizedDescription.contains("安全性")) }
+            catch { XCTAssertEqual(error.localizedDescription, DeveloperStorageError.unsafeTarget.localizedDescription) }
             let result = await service.cleanBatch([entry]) { _ in }
             XCTAssertTrue(result.hasFailures)
             XCTAssertTrue(result.snapshots.isEmpty)
@@ -296,7 +296,7 @@ final class DeveloperStorageTests: XCTestCase {
         let entry = try XCTUnwrap(scan.entries.first)
         try Data(repeating: 9, count: 8_192).write(to: version.appendingPathComponent("symbols"))
         do { _ = try await service.clean(entry); XCTFail("Changed target must not be deleted") }
-        catch { XCTAssertTrue(error.localizedDescription.contains("变化")) }
+        catch { XCTAssertEqual(error.localizedDescription, DeveloperStorageError.targetChanged.localizedDescription) }
         XCTAssertTrue(FileManager.default.fileExists(atPath: version.path))
         XCTAssertTrue(commands.invocations.isEmpty)
     }
@@ -357,7 +357,7 @@ final class DeveloperStorageTests: XCTestCase {
         let service = DeveloperStorageService(home: home, commands: commands)
         let scan = await service.scan(.deviceSupport)
         do { _ = try await service.clean(try XCTUnwrap(scan.entries.first)); XCTFail("Must revalidate after lsof") }
-        catch { XCTAssertTrue(error.localizedDescription.contains("变化")) }
+        catch { XCTAssertEqual(error.localizedDescription, DeveloperStorageError.targetChanged.localizedDescription) }
         XCTAssertTrue(FileManager.default.fileExists(atPath: version.path))
     }
 
@@ -421,10 +421,10 @@ final class DeveloperStorageTests: XCTestCase {
             let running = try XCTUnwrap(scan.entries.first { $0.name == "com.google.Chrome" })
             XCTAssertFalse(running.canClean)
             XCTAssertNil(running.manifest)
-            XCTAssertEqual(running.cleanupUnavailableReason, "归属应用正在运行，暂不能删除")
+            XCTAssertEqual(running.cleanupUnavailableReason, L10n.tr("The owning app is running. Deletion is unavailable"))
             let idle = try XCTUnwrap(scan.entries.first { $0.name == "com.example.IdleApp" })
             XCTAssertTrue(idle.canClean)
-            XCTAssertEqual(idle.safetyMark, "符合清理条件")
+            XCTAssertEqual(idle.safetyMark, L10n.tr("Eligible for cleanup"))
             XCTAssertTrue(scan.entries.filter { $0.name.contains("Unknown") }.allSatisfy { !$0.canClean && $0.manifest == nil })
             XCTAssertEqual(commands.invocations.filter { $0.executable == "/bin/ps" }.count, 1)
         }
@@ -477,7 +477,7 @@ final class DeveloperStorageTests: XCTestCase {
         // category scan or duplicate validation/process listing per target.
         XCTAssertEqual(after - before, 2 * scan.entries.count + 1)
         XCTAssertEqual(commands.invocations.filter { $0.executable == "/usr/sbin/lsof" }.count, 2)
-        XCTAssertTrue(result.measurements.contains { $0.contains("用户缓存占用变化无法完整测量") })
+        XCTAssertTrue(result.measurements.contains { $0.contains(L10n.tr("%@ usage change could not be fully measured.", DeveloperStorageKind.userCaches.title)) })
     }
 
     func testStreamingVerificationRejectsIncompleteEvidenceAndPreservesHardLinks() async throws {
@@ -695,7 +695,7 @@ final class DeveloperStorageTests: XCTestCase {
         XCTAssertEqual(result.items.count, 3)
         XCTAssertTrue(result.items.allSatisfy(\.removed))
         XCTAssertEqual(result.snapshots.count, 3)
-        XCTAssertEqual(result.measurements.filter { $0.contains("所在卷可用空间变化") }.count, 1)
+        XCTAssertEqual(result.measurements.filter { $0 == L10n.tr("Containing volume free-space change could not be measured.") || $0.hasPrefix(L10n.tr("Containing volume free-space change: %@%@.", "", "").dropLast()) }.count, 1)
         for target in [support, cache, file] { XCTAssertFalse(FileManager.default.fileExists(atPath: target.path)) }
     }
 
@@ -746,7 +746,7 @@ final class DeveloperStorageTests: XCTestCase {
         let service = DeveloperStorageService(home: home, commands: commands)
         let scan = await service.scan(.simulators)
         do { _ = try await service.clean(try XCTUnwrap(scan.entries.first)); XCTFail("Running device must survive") }
-        catch { XCTAssertTrue(error.localizedDescription.contains("变化")) }
+        catch { XCTAssertEqual(error.localizedDescription, DeveloperStorageError.targetChanged.localizedDescription) }
         XCTAssertFalse(commands.invocations.contains { $0.arguments.contains("delete") })
         XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
     }
@@ -761,7 +761,7 @@ final class DeveloperStorageTests: XCTestCase {
         let scan = await DeveloperStorageService(home: home, commands: StorageTestCommands()).scan(.simulators)
         let entry = try XCTUnwrap(scan.entries.first)
         XCTAssertEqual(entry.device?.name, "Saved device")
-        XCTAssertEqual(entry.device?.stateTitle, "状态未知")
+        XCTAssertEqual(entry.device?.stateTitle, L10n.tr("Unknown state"))
         XCTAssertFalse(entry.canClean)
     }
 
@@ -833,9 +833,9 @@ final class DeveloperStorageTests: XCTestCase {
         let scan = await service.scan(.simulators)
         let entry = try XCTUnwrap(scan.entries.first)
         XCTAssertTrue(entry.canClean)
-        XCTAssertEqual(entry.device?.stateTitle, "创建未完成")
+        XCTAssertEqual(entry.device?.stateTitle, L10n.tr("Creation incomplete"))
         do { _ = try await service.clean(entry); XCTFail("An occupied target must survive") }
-        catch { XCTAssertTrue(error.localizedDescription.contains("占用")) }
+        catch { XCTAssertEqual(error.localizedDescription, DeveloperStorageError.occupied.localizedDescription) }
         XCTAssertFalse(commands.invocations.contains { $0.arguments.contains("delete") })
         XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
     }
@@ -854,7 +854,7 @@ final class DeveloperStorageTests: XCTestCase {
         let service = DeveloperStorageService(home: home, commands: commands)
         let scan = await service.scan(.simulators)
         do { _ = try await service.clean(try XCTUnwrap(scan.entries.first)); XCTFail("Changed availability must revoke deletion") }
-        catch { XCTAssertTrue(error.localizedDescription.contains("变化")) }
+        catch { XCTAssertEqual(error.localizedDescription, DeveloperStorageError.targetChanged.localizedDescription) }
         XCTAssertFalse(commands.invocations.contains { $0.arguments.contains("delete") })
     }
 
@@ -901,7 +901,7 @@ final class DeveloperStorageTests: XCTestCase {
                 try StorageCommandRunner().run(executable: "/bin/sleep", arguments: ["5"], timeout: 0.05)
             }.value
             XCTFail("Command must time out")
-        } catch { XCTAssertTrue(error.localizedDescription.contains("超时")) }
+        } catch { XCTAssertEqual(error.localizedDescription, L10n.tr("The tool timed out. Verify the operation result again. No automatic retry will occur.")) }
         XCTAssertLessThan(Date().timeIntervalSince(start), 4)
     }
 
@@ -940,7 +940,7 @@ final class DeveloperStorageTests: XCTestCase {
             $0.executable == "/usr/sbin/lsof" || $0.arguments.contains("delete")
         }
         XCTAssertEqual(atomicCommands.map { $0.executable == "/usr/sbin/lsof" }, [true, false, true, false])
-        XCTAssertEqual(result.measurements.filter { $0.contains("所在卷可用空间变化") }.count, 1)
+        XCTAssertEqual(result.measurements.filter { $0 == L10n.tr("Containing volume free-space change could not be measured.") || $0.hasPrefix(L10n.tr("Containing volume free-space change: %@%@.", "", "").dropLast()) }.count, 1)
         let updates = await progress.updates
         XCTAssertEqual(updates.map(\.index), [1, 2])
         XCTAssertTrue(updates.allSatisfy { $0.total == 2 })
@@ -988,7 +988,7 @@ final class DeveloperStorageTests: XCTestCase {
         XCTAssertFalse(result.hasFailures)
         XCTAssertEqual(result.items.count, 2)
         XCTAssertEqual(Set(result.snapshots.map(\.kind)), Set([.deviceSupport, .simulators]))
-        XCTAssertEqual(result.measurements.filter { $0.contains("所在卷可用空间变化") }.count, 1)
+        XCTAssertEqual(result.measurements.filter { $0 == L10n.tr("Containing volume free-space change could not be measured.") || $0.hasPrefix(L10n.tr("Containing volume free-space change: %@%@.", "", "").dropLast()) }.count, 1)
         XCTAssertFalse(FileManager.default.fileExists(atPath: support.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: simulator.path))
     }
@@ -1198,7 +1198,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
         XCTAssertEqual(cleans, 1)
         XCTAssertEqual(scans, 2)
         XCTAssertTrue(store.operationFailed)
-        XCTAssertTrue(store.operationMessage?.contains("重新选择并确认") == true)
+        XCTAssertTrue(store.operationMessage?.contains(L10n.tr("Cleanup incomplete: %@\nTo try again, reselect and confirm the items.", DeveloperStorageError.targetChanged.localizedDescription)) == true)
         store.confirmCleanup(request)
         XCTAssertNil(store.cleaningEntryID)
     }
@@ -1280,7 +1280,7 @@ final class DeveloperStorageStoreTests: XCTestCase {
             directoryReduction: 100, volumeAvailableChange: 100))
         try await waitUntil { !store.isBusy }
         XCTAssertTrue(store.operationFailed)
-        XCTAssertTrue(store.operationMessage?.contains("已清理 1/2") == true)
+        XCTAssertTrue(store.operationMessage?.contains(L10n.tr("Cleaned %@/%@ items.", "1", "2")) == true)
         XCTAssertNil(store.cleanupProgress)
         let count = await provider.cleanCount
         XCTAssertEqual(count, 2)

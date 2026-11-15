@@ -38,6 +38,9 @@
 		100000000000000000000027 /* DeveloperStorageHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000027 /* DeveloperStorageHistory.swift */; };
 		100000000000000000000028 /* StorageTrendView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000028 /* StorageTrendView.swift */; };
 		100000000000000000000029 /* StorageHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000029 /* StorageHistoryTests.swift */; };
+		10000000000000000000002A /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20000000000000000000002A /* Localization.swift */; };
+		10000000000000000000002B /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20000000000000000000002B /* LocalizationTests.swift */; };
+		10000000000000000000002C /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 700000000000000000000005 /* Localizable.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -84,6 +87,10 @@
 		200000000000000000000027 /* DeveloperStorageHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperStorageHistory.swift; sourceTree = "<group>"; };
 		200000000000000000000028 /* StorageTrendView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageTrendView.swift; sourceTree = "<group>"; };
 		200000000000000000000029 /* StorageHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageHistoryTests.swift; sourceTree = "<group>"; };
+		20000000000000000000002A /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		20000000000000000000002B /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
+		20000000000000000000002C /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		20000000000000000000002D /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -117,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				200000000000000000000001 /* CodexUsageStatusApp.swift */,
+				20000000000000000000002A /* Localization.swift */,
 				200000000000000000000002 /* UsageModels.swift */,
 				200000000000000000000003 /* CodexProtocol.swift */,
 				200000000000000000000004 /* JSONLineFramer.swift */,
@@ -139,6 +147,7 @@
 				200000000000000000000024 /* SystemMetricsViews.swift */,
 				200000000000000000000026 /* PrivacyInfo.xcprivacy */,
 				200000000000000000000010 /* Assets.xcassets */,
+				700000000000000000000005 /* Localizable.strings */,
 			);
 			path = CodexUsageStatus;
 			sourceTree = "<group>";
@@ -147,6 +156,7 @@
 			isa = PBXGroup;
 			children = (
 				20000000000000000000000A /* WeeklyWindowSelectorTests.swift */,
+				20000000000000000000002B /* LocalizationTests.swift */,
 				20000000000000000000000B /* ProtocolDecodingTests.swift */,
 				20000000000000000000000C /* RefreshIntervalTests.swift */,
 				20000000000000000000000D /* JSONLineFramerTests.swift */,
@@ -226,10 +236,11 @@
 			};
 			buildConfigurationList = 800000000000000000000001 /* Build configuration list for PBXProject "CodexUsageStatus" */;
 			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = zh-Hans;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				zh-Hans,
+				en,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = 700000000000000000000001;
@@ -250,6 +261,7 @@
 			files = (
 				100000000000000000000026 /* PrivacyInfo.xcprivacy in Resources */,
 				10000000000000000000000E /* Assets.xcassets in Resources */,
+				10000000000000000000002C /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -272,6 +284,7 @@
 				100000000000000000000023 /* SystemMetricsStore.swift in Sources */,
 				100000000000000000000024 /* SystemMetricsViews.swift in Sources */,
 				100000000000000000000001 /* CodexUsageStatusApp.swift in Sources */,
+				10000000000000000000002A /* Localization.swift in Sources */,
 				100000000000000000000002 /* UsageModels.swift in Sources */,
 				100000000000000000000003 /* CodexProtocol.swift in Sources */,
 				100000000000000000000004 /* JSONLineFramer.swift in Sources */,
@@ -296,6 +309,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				10000000000000000000000A /* WeeklyWindowSelectorTests.swift in Sources */,
+				10000000000000000000002B /* LocalizationTests.swift in Sources */,
 				10000000000000000000000B /* ProtocolDecodingTests.swift in Sources */,
 				10000000000000000000000C /* RefreshIntervalTests.swift in Sources */,
 				10000000000000000000000D /* JSONLineFramerTests.swift in Sources */,
@@ -307,6 +321,15 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		700000000000000000000005 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (20000000000000000000002C /* en */, 20000000000000000000002D /* zh-Hans */);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin PBXTargetDependency section */
 		900000000000000000000001 /* PBXTargetDependency */ = {

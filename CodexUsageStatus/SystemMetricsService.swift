@@ -38,7 +38,7 @@ actor SystemMetricsService: SystemMetricsProviding {
         let values = try url.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey])
         guard let total = values.volumeTotalCapacity, total > 0,
               let available = values.volumeAvailableCapacity, available >= 0 else {
-            throw SystemMetricsError(message: "无法读取系统盘容量")
+            throw SystemMetricsError(message: L10n.tr("Unable to read startup disk capacity"))
         }
         return CapacityUsage(totalBytes: UInt64(total), availableBytes: UInt64(available))
     }
@@ -54,12 +54,12 @@ actor SystemMetricsService: SystemMetricsProviding {
             }
         }
         guard result == KERN_SUCCESS else {
-            throw SystemMetricsError(message: "读取内存失败（Mach \(result)）")
+            throw SystemMetricsError(message: L10n.tr("Unable to read memory (Mach %@)", "\(result)"))
         }
         var pageSize: vm_size_t = 0
         let pageResult = host_page_size(host, &pageSize)
         guard pageResult == KERN_SUCCESS, pageSize > 0 else {
-            throw SystemMetricsError(message: "读取内存页大小失败（Mach \(pageResult)）")
+            throw SystemMetricsError(message: L10n.tr("Unable to read memory page size (Mach %@)", "\(pageResult)"))
         }
         return .memory(
             totalBytes: ProcessInfo.processInfo.physicalMemory, pageSize: UInt64(pageSize),
@@ -79,14 +79,14 @@ actor SystemMetricsService: SystemMetricsProviding {
             }
         }
         guard result == KERN_SUCCESS else {
-            throw SystemMetricsError(message: "读取 CPU 失败（Mach \(result)）")
+            throw SystemMetricsError(message: L10n.tr("Unable to read CPU usage (Mach %@)", "\(result)"))
         }
         return CPUTicks(user: info.cpu_ticks.0, system: info.cpu_ticks.1, idle: info.cpu_ticks.2, nice: info.cpu_ticks.3)
     }
 
     private func primaryInterface() throws -> String? {
         guard let store = SCDynamicStoreCreate(nil, "CodexUsageStatus.SystemMetrics" as CFString, nil, nil) else {
-            throw SystemMetricsError(message: "无法读取主要网络接口（SystemConfiguration \(SCError())）")
+            throw SystemMetricsError(message: L10n.tr("Unable to read the primary network interface (SystemConfiguration %@)", "\(SCError())"))
         }
         for family in ["IPv4", "IPv6"] {
             if let state = SCDynamicStoreCopyValue(store, "State:/Network/Global/\(family)" as CFString) as? [String: Any],
@@ -99,18 +99,18 @@ actor SystemMetricsService: SystemMetricsProviding {
 
     private func networkCounters(interface: String) throws -> NetworkCounters {
         let index = if_nametoindex(interface)
-        guard index > 0 else { throw SystemMetricsError(message: "网络接口 \(interface) 已不可用") }
+        guard index > 0 else { throw SystemMetricsError(message: L10n.tr("Network interface %@ is no longer available", "\(interface)")) }
         var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, Int32(index)]
         var length = 0
         guard sysctl(&mib, u_int(mib.count), nil, &length, nil, 0) == 0 else {
-            throw SystemMetricsError(message: "读取网络计数大小失败（errno \(errno)）")
+            throw SystemMetricsError(message: L10n.tr("Unable to read network counter size (errno %@)", "\(errno)"))
         }
         var data = Data(count: length)
         let result = data.withUnsafeMutableBytes {
             sysctl(&mib, u_int(mib.count), $0.baseAddress, &length, nil, 0)
         }
         guard result == 0 else {
-            throw SystemMetricsError(message: "读取网络计数失败（errno \(errno)）")
+            throw SystemMetricsError(message: L10n.tr("Unable to read network counters (errno %@)", "\(errno)"))
         }
         return try data.withUnsafeBytes { bytes in
             var offset = 0
@@ -123,7 +123,7 @@ actor SystemMetricsService: SystemMetricsProviding {
                     let info = bytes.loadUnaligned(fromByteOffset: offset, as: if_msghdr2.self)
                     if UInt32(info.ifm_index) == index {
                         guard info.ifm_flags & IFF_UP != 0 else {
-                            throw SystemMetricsError(message: "网络接口 \(interface) 未启用")
+                            throw SystemMetricsError(message: L10n.tr("Network interface %@ is inactive", "\(interface)"))
                         }
                         return NetworkCounters(interface: interface, interfaceIndex: index,
                                                received: info.ifm_data.ifi_ibytes, sent: info.ifm_data.ifi_obytes)
@@ -131,7 +131,7 @@ actor SystemMetricsService: SystemMetricsProviding {
                 }
                 offset += messageLength
             }
-            throw SystemMetricsError(message: "未找到网络接口 \(interface) 的计数")
+            throw SystemMetricsError(message: L10n.tr("No counters found for network interface %@", "\(interface)"))
         }
     }
 }

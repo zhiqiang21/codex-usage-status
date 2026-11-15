@@ -31,7 +31,7 @@ extension DeveloperStorageProviding {
                 items.append(StorageBatchItemResult(path: entry.path, removed: result.targetRemoved, message: result.message))
             } catch {
                 items.append(StorageBatchItemResult(path: entry.path, removed: false,
-                    message: "清理未完成：\(error.localizedDescription)\n如需重试，请重新选择并确认条目。"))
+                    message: L10n.tr("Cleanup incomplete: %@\nTo try again, reselect and confirm the items.", "\(error.localizedDescription)")))
             }
         }
         for kind in Set(entries.map(\.kind)) {
@@ -158,13 +158,13 @@ struct DeveloperStorageService: DeveloperStorageProviding {
             var runtimes: [StorageRuntimeInfo] = []
             if kind == .simulators && !measurementOnly {
                 do { devices = try simulatorDevices(root: root) }
-                catch { notice = "无法核实模拟器状态，删除已禁用：\(error.localizedDescription)" }
+                catch { notice = L10n.tr("Unable to verify simulator state. Deletion disabled: %@", "\(error.localizedDescription)") }
             }
             if kind == .simulatorRuntimes && !measurementOnly {
                 do {
                     runtimes = try runtimeInfos()
                     devices = try simulatorDevices(root: rootURL(for: .simulators))
-                } catch { notice = "无法核实运行时，卸载已禁用；可在 Xcode 中管理。\(error.localizedDescription)" }
+                } catch { notice = L10n.tr("Unable to verify runtimes. Uninstall disabled; manage them in Xcode. %@", "\(error.localizedDescription)") }
             }
             var seen = Set<String>()
             bytes = rootIdentity.allocatedBytes
@@ -174,7 +174,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
             if kind == .userCaches && !measurementOnly {
                 processPaths = runningProcessPaths()
                 if processPaths == nil {
-                    notice = "无法核实运行中的进程，相关条目已标记为不可删除。"
+                    notice = L10n.tr("Running processes could not be verified. Affected items cannot be deleted.")
                 }
             }
             for child in children {
@@ -200,9 +200,9 @@ struct DeveloperStorageService: DeveloperStorageProviding {
                 var action: StorageCleanupAction?
                 let reason: String?
                 if !StoragePathLabel.isUnambiguous(child.path) {
-                    reason = "路径包含控制字符，仅可查看"
+                    reason = L10n.tr("The path contains control characters. Read-only")
                 } else if kind == .codexData {
-                    reason = "仅缓存和旧日志可按文件清理"
+                    reason = L10n.tr("Only caches and old logs support file cleanup")
                 } else if kind == .simulatorRuntimes {
                     let matches = runtimes.filter { runtimeMatches($0, asset: asset, path: child) }
                     if tree.issues.isEmpty, let node = tree.rootIdentity, node.isDirectory, !node.isSymbolicLink,
@@ -210,7 +210,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
                         let target = runtimeTarget(info, devices: devices)
                         action = .runtime(target)
                         reason = target.unavailableReason
-                    } else { reason = "运行时映射不明确或无法完整核实，请在 Xcode 中管理" }
+                    } else { reason = L10n.tr("Runtime mapping is ambiguous or incomplete. Manage it in Xcode") }
                 } else if kind.isLibraryManagement {
                     if let preliminaryReason { reason = preliminaryReason }
                     else if let node = tree.rootIdentity,
@@ -225,15 +225,15 @@ struct DeveloperStorageService: DeveloperStorageProviding {
                         }
                         if reason == nil { action = .libraryDirectory(kind) }
                     } else {
-                        reason = "目标为符号链接、包含挂载点或无法完整核实，仅可查看"
+                        reason = L10n.tr("The target is a symlink, contains mount points, or could not be fully verified. Read-only")
                     }
                 } else if manifest?.isSafeDirectory != true {
-                    reason = "目录未完整核实，或目标为符号链接、包含挂载点，仅可查看"
+                    reason = L10n.tr("The directory could not be fully verified, is a symlink, or contains mount points. Read-only")
                 } else if kind == .deviceSupport {
-                    reason = isSupportVersion(child.lastPathComponent) ? nil : "无法识别为调试支持版本，仅可查看"
+                    reason = isSupportVersion(child.lastPathComponent) ? nil : L10n.tr("Not recognized as a device support version. Read-only")
                     if reason == nil { action = .directory }
                 } else if authoritative == nil {
-                    reason = "设备身份或实时状态无法核实，仅可查看"
+                    reason = L10n.tr("Device identity or current state could not be verified. Read-only")
                 } else {
                     reason = authoritative?.cleanupUnavailableReason
                     if let authoritative { action = .simulatorDevice(authoritative.udid) }
@@ -274,7 +274,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
                 if target.path == url.path { result.rootIdentity = node }
                 if captureManifest { result.nodes.append(node) }
                 if node.device != device || node.isMountPoint {
-                    result.issues.append("跳过挂载点：\(StoragePathLabel.string(target.path))")
+                    result.issues.append(L10n.tr("Skipped mount point: %@", "\(StoragePathLabel.string(target.path))"))
                     return
                 }
                 let key = inodeKey(node)
@@ -286,7 +286,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
                     for child in children { visit(child) }
                 }
             } catch {
-                result.issues.append("\(StoragePathLabel.string(target.path))：\(error.localizedDescription)")
+                result.issues.append(L10n.tr("%@: %@", StoragePathLabel.string(target.path), error.localizedDescription))
                 if StorageFileAccess.isPermissionDenied(error) { result.permissionDeniedPaths.append(target.path) }
             }
         }
@@ -375,52 +375,52 @@ struct DeveloperStorageService: DeveloperStorageProviding {
         if let reason = libraryTreeUnavailableReason(nodes: nodes) { return reason }
         let cutoff = now().addingTimeInterval(-3 * 86_400)
         guard nodes.allSatisfy({ $0.modifiedAt < cutoff }) else {
-            return "目标或子项最近 3 天内有修改，可能正在使用"
+            return L10n.tr("The target or a descendant changed in the last 3 days and may be in use")
         }
         return nil
     }
 
     private func libraryTreeUnavailableReason(nodes: [StorageNodeIdentity]) -> String? {
         for node in nodes {
-            guard node.owner == getuid() else { return "目标或子项属于其他用户或系统，不可删除" }
+            guard node.owner == getuid() else { return L10n.tr("The target or a descendant belongs to another user or the system. Deletion is unavailable") }
             guard !node.isSymbolicLink, !node.isMountPoint,
                   node.isDirectory || node.mode & 0o170000 == 0o100000 else {
-                return "目标包含符号链接、挂载点或特殊文件，仅可查看"
+                return L10n.tr("The target contains symlinks, mount points, or special files. Read-only")
             }
             guard !node.isDirectory || node.mode & 0o022 == 0 else {
-                return "目标包含其他用户可写的目录，仅可查看"
+                return L10n.tr("The target contains directories writable by other users. Read-only")
             }
         }
         return nil
     }
 
     private func userCachesUnavailableReason(name: String, processPaths: Set<String>?) -> String? {
-        guard StorageAppBundleID.isBundleID(name) else { return "无法确认归属应用，仅可查看" }
+        guard StorageAppBundleID.isBundleID(name) else { return L10n.tr("The owning app could not be identified. Read-only") }
         let apps = appResolver.installedAppURLs(forBundleIdentifier: name).filter { app in
             guard app.pathExtension == "app", let node = try? identity(app) else { return false }
             return node.isDirectory && !node.isSymbolicLink && Bundle(url: app)?.bundleIdentifier == name
         }
-        guard !apps.isEmpty else { return "无法确认归属应用，仅可查看" }
-        guard let processPaths else { return "无法核实运行中的进程，暂不能删除" }
+        guard !apps.isEmpty else { return L10n.tr("The owning app could not be identified. Read-only") }
+        guard let processPaths else { return L10n.tr("Running processes could not be verified. Deletion is unavailable") }
         // Include every registered copy and nested helper; bundle IDs do not
         // determine executable names and may belong to several installations.
         let bundlePaths = apps.compactMap { StorageCanonicalPath.resolve($0).map { $0 + "/" } }
-        guard !bundlePaths.isEmpty else { return "无法确认归属应用，仅可查看" }
+        guard !bundlePaths.isEmpty else { return L10n.tr("The owning app could not be identified. Read-only") }
         let running = processPaths.contains { process in bundlePaths.contains { process.hasPrefix($0) } }
-        return running ? "归属应用正在运行，暂不能删除" : nil
+        return running ? L10n.tr("The owning app is running. Deletion is unavailable") : nil
     }
 
     private func libraryCleanupUnavailableReason(kind: DeveloperStorageKind, name: String,
                                                  manifest: StorageManifest?, processPaths: Set<String>?) -> String? {
         switch kind {
         case .systemTmp:
-            guard let manifest else { return "目标无法完整核实，仅可查看" }
+            guard let manifest else { return L10n.tr("The target could not be fully verified. Read-only") }
             return systemTmpUnavailableReason(nodes: manifest.nodes)
         case .userCaches:
             if let manifest, let reason = libraryTreeUnavailableReason(nodes: manifest.nodes) { return reason }
             return userCachesUnavailableReason(name: name, processPaths: processPaths)
-        case .appSupport: return "可能包含用户数据，仅可查看；查询不到应用不代表数据可删除"
-        default: return "此类别不支持 Library 清理"
+        case .appSupport: return L10n.tr("May contain user data. Read-only; a missing app does not mean its data is safe to delete")
+        default: return L10n.tr("This category does not support Library cleanup")
         }
     }
 
@@ -438,14 +438,14 @@ struct DeveloperStorageService: DeveloperStorageProviding {
         let result = try commands.run(executable: "/usr/bin/xcrun",
                                       arguments: ["simctl", "--set", root.path, "list", "devices", "--json"], timeout: 30)
         guard result.status == 0, result.error.isEmpty else {
-            throw DeveloperStorageError.command("simctl 无法读取设备。\(result.errorText)")
+            throw DeveloperStorageError.command(L10n.tr("simctl could not read devices. %@", "\(result.errorText)"))
         }
         let list = try JSONDecoder().decode(DeviceList.self, from: result.output)
         var devices: [String: SimulatorStorageDevice] = [:]
         for (runtime, group) in list.devices {
             for device in group {
                 guard UUID(uuidString: device.udid) != nil, devices[device.udid] == nil else {
-                    throw DeveloperStorageError.command("simctl 返回了无效或重复的设备标识。")
+                    throw DeveloperStorageError.command(L10n.tr("simctl returned invalid or duplicate device IDs."))
                 }
                 devices[device.udid] = SimulatorStorageDevice(udid: device.udid, name: device.name,
                     runtime: runtime, state: device.state, isAvailable: device.isAvailable)
@@ -470,12 +470,12 @@ struct DeveloperStorageService: DeveloperStorageProviding {
     private func runtimeInfos() throws -> [StorageRuntimeInfo] {
         let result = try commands.run(executable: "/usr/bin/xcrun", arguments: ["simctl", "runtime", "list", "--json"], timeout: 30)
         guard result.status == 0, result.error.isEmpty else {
-            throw DeveloperStorageError.command("无法读取系统运行时列表。\(result.errorText)")
+            throw DeveloperStorageError.command(L10n.tr("Unable to read the system runtime list. %@", "\(result.errorText)"))
         }
         let values = try JSONDecoder().decode([String: StorageRuntimeInfo].self, from: result.output)
         for (key, value) in values {
             guard key == value.identifier, UUID(uuidString: value.identifier) != nil else {
-                throw DeveloperStorageError.command("系统返回了无效的运行时标识。")
+                throw DeveloperStorageError.command(L10n.tr("The system returned an invalid runtime ID."))
             }
         }
         return Array(values.values)
@@ -742,7 +742,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
             let result = try commands.run(executable: "/usr/bin/xcrun",
                 arguments: ["simctl", "runtime", "delete", runtime.info.identifier], timeout: 120)
             guard result.status == 0, result.error.isEmpty else {
-                throw DeveloperStorageError.command("运行时卸载失败，请在 Xcode 中管理。\(result.errorText)")
+                throw DeveloperStorageError.command(L10n.tr("Runtime uninstall failed. Manage it in Xcode. %@", "\(result.errorText)"))
             }
             return
         }
@@ -756,7 +756,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
         // lsof returns 1 with empty stdout/stderr when it found no matching files.
         // Warnings (including incomplete traversal) are never treated as empty.
         guard occupancy.status == 1, occupancy.error.isEmpty else {
-            throw DeveloperStorageError.command("无法完整确认目录未被占用，已停止清理。\(occupancy.errorText)")
+            throw DeveloperStorageError.command(L10n.tr("Unable to fully verify that the directory is unused. Cleanup stopped. %@", "\(occupancy.errorText)"))
         }
         _ = try revalidate(entry)
         if case .directory = entry.cleanupAction {
@@ -769,7 +769,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
             let result = try commands.run(executable: "/usr/bin/xcrun",
                 arguments: ["simctl", "--set", root.path, "delete", device.udid], timeout: 120)
             guard result.status == 0, result.error.isEmpty else {
-                throw DeveloperStorageError.command("删除设备失败或结果不完整，请刷新核实。\(result.errorText)")
+                throw DeveloperStorageError.command(L10n.tr("Device deletion failed or returned incomplete results. Refresh to verify. %@", "\(result.errorText)"))
             }
         }
     }
@@ -791,7 +791,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
     private func cleanBatchOnWorker(_ entries: [DeveloperStorageEntry], progress: @escaping @Sendable (StorageCleanupProgress) async -> Void) async -> StorageBatchCleanupResult {
         if entries.count != 1, entries.contains(where: { if case .runtime = $0.cleanupAction { return true }; return false }) {
             return StorageBatchCleanupResult(snapshots: [], items: entries.map {
-                StorageBatchItemResult(path: $0.path, removed: false, message: "运行时必须逐个确认卸载，不能混入批量清理。")
+                StorageBatchItemResult(path: $0.path, removed: false, message: L10n.tr("Runtimes require individual uninstall confirmation and cannot be included in batch cleanup."))
             }, measurements: [])
         }
         let kinds = DeveloperStorageKind.allCases.filter { kind in entries.contains { $0.kind == kind && $0.canClean } }
@@ -818,29 +818,29 @@ struct DeveloperStorageService: DeveloperStorageProviding {
                 try removeTarget(entry)
                 let removed = try cleanupTargetRemoved(entry)
                 items.append(StorageBatchItemResult(path: entry.path, removed: removed,
-                    message: removed ? "已核实目标已移除。" : "目标或系统资源仍存在，请检查详情或在 Xcode 中管理；不会自动重试。"))
+                    message: removed ? L10n.tr("Verified that the target was removed.") : L10n.tr("The target or system resources still exist. Check details or manage them in Xcode. No automatic retry will occur.")))
             } catch {
                 // A failed atomic target never widens or retries. Other explicitly
                 // confirmed targets remain independent and can still be processed.
                 items.append(StorageBatchItemResult(path: entry.path, removed: false,
-                    message: "清理未完成：\(error.localizedDescription)\n如需重试，请重新选择并确认条目。"))
+                    message: L10n.tr("Cleanup incomplete: %@\nTo try again, reselect and confirm the items.", "\(error.localizedDescription)")))
             }
         }
         let snapshots = kinds.map { scanSynchronously($0) }
         var measurements: [String] = snapshots.map { after in
             if after.isComplete, let old = beforeBytes[after.kind], let new = after.allocatedBytes {
-                return "\(after.kind.title)占用变化（减少为正）：\(StorageSizeFormatter.string(old - new))。"
+                return L10n.tr("%@ usage change (positive means reduction): %@.", "\(after.kind.title)", "\(StorageSizeFormatter.string(old - new))")
             }
-            return "\(after.kind.title)占用变化无法完整测量。"
+            return L10n.tr("%@ usage change could not be fully measured.", "\(after.kind.title)")
         }
         for (_, volume) in volumes.sorted(by: { $0.key < $1.key }) {
             if let free = availableSpace(volume.root) {
                 let delta = free - volume.available
-                measurements.append("所在卷可用空间变化：\(delta >= 0 ? "+" : "")\(StorageSizeFormatter.string(delta))。")
-            } else { measurements.append("所在卷可用空间变化无法测量。") }
+                measurements.append(L10n.tr("Containing volume free-space change: %@%@.", "\(delta >= 0 ? "+" : "")", "\(StorageSizeFormatter.string(delta))"))
+            } else { measurements.append(L10n.tr("Containing volume free-space change could not be measured.")) }
         }
-        if volumes.isEmpty { measurements.append("卷可用空间变化无法测量。") }
-        measurements.append("卷空间可能同时受其他进程及 APFS 影响。")
+        if volumes.isEmpty { measurements.append(L10n.tr("Volume free-space change could not be measured.")) }
+        measurements.append(L10n.tr("Other processes and APFS may also affect volume space."))
         return StorageBatchCleanupResult(snapshots: snapshots, items: items, measurements: measurements)
     }
 }

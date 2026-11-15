@@ -6,8 +6,8 @@ enum StorageTrendPeriod: String, CaseIterable, Identifiable, Sendable {
     var id: Self { self }
     var title: String {
         switch self {
-        case .week: "周"
-        case .month: "月"
+        case .week: L10n.tr("Week")
+        case .month: L10n.tr("Month")
         }
     }
     var duration: TimeInterval {
@@ -168,11 +168,11 @@ actor StorageHistoryRepository {
                         }
                     } else {
                         canSave = false
-                        warning = "存储趋势记录版本不受支持，暂不覆盖原文件。"
+                        warning = L10n.tr("This storage history version is unsupported. The original file will not be overwritten.")
                     }
                 } catch {
                     canSave = false
-                    warning = "无法读取存储趋势记录：\(error.localizedDescription) 本次记录仅保留在内存中。"
+                    warning = L10n.tr("Unable to read storage history: %@ New records will stay in memory only.", "\(error.localizedDescription)")
                 }
             }
         }
@@ -211,7 +211,7 @@ actor StorageHistoryRepository {
                 try data.write(to: fileURL, options: .atomic)
                 warning = nil
             } catch {
-                warning = "无法保存存储趋势记录：\(error.localizedDescription) 本次记录仅保留在内存中。"
+                warning = L10n.tr("Unable to save storage history: %@ New records will stay in memory only.", "\(error.localizedDescription)")
             }
         }
         return state

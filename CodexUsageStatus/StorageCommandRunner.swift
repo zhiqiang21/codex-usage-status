@@ -43,7 +43,7 @@ private final class StorageCommandCapture: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard !failed && !overflow else {
-            throw DeveloperStorageError.command("工具输出不完整，已停止操作。")
+            throw DeveloperStorageError.command(L10n.tr("Tool output was incomplete. The operation stopped."))
         }
         return data
     }
@@ -93,10 +93,10 @@ struct StorageCommandRunner: StorageCommandRunning {
         try? outputPipe.fileHandleForReading.close()
         try? errorPipe.fileHandleForReading.close()
         guard !timedOut else {
-            throw DeveloperStorageError.command("工具执行超时，操作结果需重新核实；不会自动重试。")
+            throw DeveloperStorageError.command(L10n.tr("The tool timed out. Verify the operation result again. No automatic retry will occur."))
         }
         guard fullyDrained, !process.isRunning else {
-            throw DeveloperStorageError.command("无法完整读取工具结果，已停止操作。")
+            throw DeveloperStorageError.command(L10n.tr("Unable to read the complete tool result. The operation stopped."))
         }
         return try StorageCommandResult(status: process.terminationStatus, output: output.value(), error: error.value())
     }

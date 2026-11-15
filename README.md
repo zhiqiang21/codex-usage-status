@@ -36,7 +36,7 @@ Development builds use ad-hoc signing and may trigger macOS security warnings.
 
 ## Usage
 
-The app UI is currently in Chinese. Control names below are English translations; Chinese text is quoted where it helps identify a label.
+The app supports **English and Simplified Chinese** and follows macOS language preferences, falling back to English for unsupported languages. To override the language for this app, use System Settings → General → Language & Region → Applications, then reopen the app. Chinese labels below show their Simplified Chinese equivalents.
 
 | Icon | Top row | Bottom row |
 | --- | --- | --- |
@@ -114,7 +114,9 @@ xcodebuild -project CodexUsageStatus.xcodeproj \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-Replace `build` with `test` to run tests. The optional live Codex integration test requires a local CLI login and explicit opt-in:
+Replace `build` with `test` to run tests. Add `-testLanguage en` or `-testLanguage zh-Hans` to verify either app language.
+
+Localizable app text lives in `CodexUsageStatus/en.lproj/Localizable.strings` and `zh-Hans.lproj/Localizable.strings`, shared by views, services, and AppKit dialogs through `L10n.tr`. Keep both tables in sync. Format arguments use `%@` (positional forms such as `%1$@` support reordering); escape literal percent signs as `%%` in formatted messages. Dates follow the system region and time zone; compact menu bar dates retain `MM.dd` and 24-hour time. The optional live Codex integration test requires a local CLI login and explicit opt-in:
 
 ```bash
 xcodebuild -project CodexUsageStatus.xcodeproj \

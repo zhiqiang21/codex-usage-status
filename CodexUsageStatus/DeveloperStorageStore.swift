@@ -136,7 +136,7 @@ final class DeveloperStorageStore: ObservableObject {
                     guard let self else { return }
                     preparingEntryID = nil
                     guard generation == operationResultGeneration else { return }
-                    operationMessage = "无法准备卸载：\(error.localizedDescription) 请刷新或在 Xcode 中管理。"
+                    operationMessage = L10n.tr("Unable to prepare uninstall: %@ Refresh or manage it in Xcode.", "\(error.localizedDescription)")
                     operationFailed = true
                 }
             }
@@ -234,7 +234,7 @@ final class DeveloperStorageStore: ObservableObject {
         // action. Keep the selected immutable object separately until consumed.
         guard confirmationRequest == request, request.entries.allSatisfy({ canClean($0) }) else {
             cancelCleanup()
-            operationMessage = "清理清单已失效，请刷新后重新选择并确认。"
+            operationMessage = L10n.tr("The cleanup list is no longer valid. Refresh, reselect, and confirm the items.")
             operationFailed = true
             return
         }
@@ -244,7 +244,7 @@ final class DeveloperStorageStore: ObservableObject {
         selection = selection.filter { !consumedIDs.contains($0.key) }
         dismissOperationResult()
         let resultGeneration = operationResultGeneration
-        cleanupProgress = "正在准备清理 \(request.entries.count) 个项目…"
+        cleanupProgress = L10n.tr("Preparing cleanup (%@)…", "\(request.entries.count)")
         cleanupTask = Task { [weak self, service] in
             let result = await service.cleanBatch(request.entries) { [weak self] progress in
                 await self?.updateCleanupProgress(progress)
@@ -263,6 +263,6 @@ final class DeveloperStorageStore: ObservableObject {
 
     private func updateCleanupProgress(_ progress: StorageCleanupProgress) {
         cleaningEntryID = progress.entry.id
-        cleanupProgress = "正在清理 \(progress.index)/\(progress.total)：\(StoragePathLabel.string(progress.entry.displayName))"
+        cleanupProgress = L10n.tr("Cleaning %@/%@: %@", "\(progress.index)", "\(progress.total)", "\(StoragePathLabel.string(progress.entry.displayName))")
     }
 }

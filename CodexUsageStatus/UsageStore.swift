@@ -269,7 +269,7 @@ final class UsageStore: ObservableObject {
         reason: RefreshReason
     ) async {
         let message = (error as? LocalizedError)?.errorDescription
-            ?? "刷新 Codex 用量失败"
+            ?? L10n.tr("Unable to refresh Codex usage")
         markCurrentDataStale(message: message)
 
         let shouldRecover = isRecoverable(error)

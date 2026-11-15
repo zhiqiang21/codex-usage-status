@@ -36,6 +36,8 @@ codex login status
 
 ## 使用
 
+应用支持**英语和简体中文**，跟随 macOS 语言偏好，其他语言回退英语。如需单独设置本应用的语言，请前往系统设置 → 通用 → 语言与地区 → 应用程序，设置后重新打开应用。
+
 | 图标 | 上行 | 下行 |
 | --- | --- | --- |
 | 时钟 | 5 小时剩余额度 | 本机时区的重置时刻，如 `18:00`；`明 01:00` 表示次日 01:00 |
@@ -125,6 +127,8 @@ xcodebuild -project CodexUsageStatus.xcodeproj \
 ```
 
 测试登录时启动时，使用 **Sign to Run Locally** 构建，并将应用放入 `/Applications`。
+
+本地化文案位于 `CodexUsageStatus/en.lproj/Localizable.strings` 和 `zh-Hans.lproj/Localizable.strings`，通过 `L10n.tr` 供视图、服务与 AppKit 对话框共用。修改文案时同步维护两张表；动态参数使用 `%@`，可用 `%1$@` 调整顺序，格式化文案中的百分号写作 `%%`。日期遵循系统地区和时区；菜单栏紧凑日期保留 `MM.dd` 和 24 小时时间格式。测试命令可添加 `-testLanguage en` 或 `-testLanguage zh-Hans` 验证对应语言。
 
 ## 发布打包
 

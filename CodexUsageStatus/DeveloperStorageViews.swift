@@ -10,7 +10,7 @@ struct DeveloperStorageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if showsHeader {
-                Label("开发存储", systemImage: "internaldrive")
+                Label(L10n.tr("Developer Storage"), systemImage: "internaldrive")
                     .font(.subheadline.weight(.medium))
             }
             if !store.permissionDeniedKinds.isEmpty { diskAccessGuidance }
@@ -20,9 +20,9 @@ struct DeveloperStorageView: View {
             }
             if !store.selection.isEmpty {
                 HStack {
-                    Text("共选 \(store.selection.count) 个项目").font(.caption)
+                    Text(L10n.tr("%@ items selected", "\(store.selection.count)")).font(.caption)
                     Spacer(minLength: 4)
-                    Button("删除所选", role: .destructive) { store.requestSelectedCleanup() }
+                    Button(L10n.tr("Delete Selected"), role: .destructive) { store.requestSelectedCleanup() }
                         .disabled(!store.canCleanSelection || store.pendingConfirmation != nil)
                 }
                 .controlSize(.small)
@@ -36,10 +36,10 @@ struct DeveloperStorageView: View {
             if store.preparingEntryID != nil {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.mini)
-                    Text("正在核实清理目标…").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.tr("Verifying cleanup targets…")).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Text("磁盘占用为估计值；APFS 共享块及快照可能影响实际释放空间。")
+            Text(L10n.tr("Disk usage is an estimate. APFS shared blocks and snapshots may affect the space actually reclaimed."))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
             if let message = store.operationMessage {
@@ -61,18 +61,18 @@ struct DeveloperStorageView: View {
 
     private var diskAccessGuidance: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("部分目录访问受限", systemImage: "lock.shield")
+            Label(L10n.tr("Access to some directories is restricted"), systemImage: "lock.shield")
                 .font(.caption.weight(.medium))
-            Text("若目录受 macOS 隐私保护限制，请在系统设置 → 隐私与安全性 → 完全磁盘访问权限中添加并开启本应用。授权由系统保存，无需每次扫描重新授权；授权后可能需要退出并重新打开应用。文件自身的权限限制仍可能阻止读取。")
+            Text(L10n.tr("If macOS privacy protections restrict a directory, add and enable this app in System Settings → Privacy & Security → Full Disk Access. The system remembers this permission; scans do not require repeated authorization. You may need to quit and reopen the app after granting access. File permissions may still prevent reading."))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            HStack {
-                Button("打开授权设置") { openDiskAccessSettings() }
-                Button("在 Finder 显示本应用") {
+            VStack(alignment: .leading, spacing: 6) {
+                Button(L10n.tr("Open Privacy Settings")) { openDiskAccessSettings() }
+                Button(L10n.tr("Show This App in Finder")) {
                     NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
                 }
             }
-            Button("授权后重新扫描") { store.refreshPermissionDeniedDirectories() }
+            Button(L10n.tr("Rescan After Authorization")) { store.refreshPermissionDeniedDirectories() }
                 .disabled(store.isBusy || store.pendingConfirmation != nil)
             if let accessSettingsError { warning(accessSettingsError) }
         }
@@ -89,7 +89,7 @@ struct DeveloperStorageView: View {
            NSWorkspace.shared.open(url) { return }
         if let settings = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.systempreferences"),
            NSWorkspace.shared.open(settings) { return }
-        accessSettingsError = "无法打开系统设置，请从苹果菜单进入隐私与安全性 → 完全磁盘访问权限。"
+        accessSettingsError = L10n.tr("Unable to open System Settings. Use the Apple menu to open Privacy & Security → Full Disk Access.")
     }
 
     private func directory(_ kind: DeveloperStorageKind) -> some View {
@@ -106,13 +106,13 @@ struct DeveloperStorageView: View {
                             .font(.caption2)
                         Text(kind.title)
                         Spacer(minLength: 2)
-                        Text(snapshot?.sizeText ?? "尚未扫描")
+                        Text(snapshot?.sizeText ?? L10n.tr("Not scanned yet"))
                             .monospacedDigit()
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("\(expanded.contains(kind) ? "折叠" : "展开")\(kind.title)")
+                .accessibilityLabel(expanded.contains(kind) ? L10n.tr("Collapse %@", kind.title) : L10n.tr("Expand %@", kind.title))
 
                 Button { store.refresh(kind) } label: {
                     if store.refreshing.contains(kind) {
@@ -123,8 +123,8 @@ struct DeveloperStorageView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(store.refreshing.contains(kind) || store.cleaningEntryID != nil || store.preparingEntryID != nil || store.pendingConfirmation != nil)
-                .help("刷新\(kind.title)")
-                .accessibilityLabel("刷新\(kind.title)")
+                .help(L10n.tr("Refresh %@", "\(kind.title)"))
+                .accessibilityLabel(L10n.tr("Refresh %@", "\(kind.title)"))
             }
             .font(.caption.weight(.medium))
 
@@ -141,43 +141,43 @@ struct DeveloperStorageView: View {
                 Text(description).font(.caption2).foregroundStyle(.secondary)
             }
             if kind == .simulatorRuntimes {
-                Button("在 Xcode 中管理") {
+                Button(L10n.tr("Manage in Xcode")) {
                     if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.dt.Xcode") {
                         NSWorkspace.shared.open(url)
                     }
                 }
                 .controlSize(.mini)
-                .help("打开 Xcode 后，前往 Settings → Components 管理运行时")
+                .help(L10n.tr("Open Xcode, then go to Settings → Components to manage runtimes"))
                 .disabled(NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.dt.Xcode") == nil)
             }
 
             if let snapshot {
                 HStack {
-                    Text("\(snapshot.entries.count) 个条目")
+                    Text(L10n.tr("Items: %@", "\(snapshot.entries.count)"))
                     Spacer()
-                    Text("扫描于 \(snapshot.scannedAt.formatted(.dateTime.hour().minute()))")
+                    Text(L10n.tr("Scanned at %@", "\(snapshot.scannedAt.formatted(.dateTime.hour().minute()))"))
                 }
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 if store.isStale(kind) {
-                    Text("数据已过期，请刷新后清理")
+                    Text(L10n.tr("Data is out of date. Refresh before cleanup"))
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
                 if let error = store.refreshErrors[kind] {
-                    warning("刷新失败：\(error)")
+                    warning(L10n.tr("Refresh failed: %@", "\(error)"))
                 }
                 if let notice = snapshot.notice { warning(notice) }
                 if !snapshot.issues.isEmpty {
-                    warning("扫描不完整：\(snapshot.issues.prefix(3).joined(separator: "\n"))")
+                    warning(L10n.tr("Incomplete scan: %@", "\(snapshot.issues.prefix(3).joined(separator: "\n"))"))
                     if snapshot.issues.count > 3 {
-                        Text("另有 \(snapshot.issues.count - 3) 处无法读取")
+                        Text(L10n.tr("%@ more locations could not be read", "\(snapshot.issues.count - 3)"))
                             .font(.caption2).foregroundStyle(.orange)
                     }
                 }
                 if expanded.contains(kind) {
                     if snapshot.entries.isEmpty {
-                        Text(snapshot.isMissing ? "目录不存在" : snapshot.isComplete ? "目录为空" : "暂无可读取的条目")
+                        Text(snapshot.isMissing ? L10n.tr("Directory not found") : snapshot.isComplete ? L10n.tr("Directory is empty") : L10n.tr("No readable entries"))
                             .font(.caption).foregroundStyle(.secondary)
                     } else {
                         if kind.showsBatchSelection || (kind == .codexData && !store.selectableEntries(kind).isEmpty) {
@@ -191,7 +191,7 @@ struct DeveloperStorageView: View {
                     }
                 }
             } else if store.refreshing.contains(kind) {
-                Text("正在统计磁盘占用…")
+                Text(L10n.tr("Calculating disk usage…"))
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
@@ -204,7 +204,7 @@ struct DeveloperStorageView: View {
             Divider()
             HStack(alignment: .firstTextBaseline) {
                 if entry.kind.showsBatchSelection || entry.allowsSelection {
-                    Toggle("选择 \(StoragePathLabel.string(entry.displayName))", isOn: Binding(
+                    Toggle(L10n.tr("Select %@", "\(StoragePathLabel.string(entry.displayName))"), isOn: Binding(
                         get: { store.isSelected(entry) },
                         set: { store.setSelected($0, entry: entry) }
                     ))
@@ -219,10 +219,10 @@ struct DeveloperStorageView: View {
             if let device = entry.device {
                 Text("\(StoragePathLabel.string(device.runtimeTitle)) · \(device.stateTitle)\(device.availabilityTitle)")
                     .foregroundStyle(.secondary)
-                Text("UDID：\(device.udid)").font(.caption2.monospaced()).textSelection(.enabled)
+                Text("UDID: \(device.udid)").font(.caption2.monospaced()).textSelection(.enabled)
             }
             if let date = entry.modifiedAt {
-                Text("修改于 \(date.formatted(.dateTime.year().month().day().hour().minute()))")
+                Text(L10n.tr("Modified at %@", "\(date.formatted(.dateTime.year().month().day().hour().minute()))"))
                     .foregroundStyle(.secondary)
             }
             Text(StoragePathLabel.string(entry.path))
@@ -238,14 +238,14 @@ struct DeveloperStorageView: View {
             }
             if !entry.issues.isEmpty { warning(entry.issues.prefix(2).joined(separator: "\n")) }
             HStack {
-                Button("在 Finder 显示") {
+                Button(L10n.tr("Show in Finder")) {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: entry.path)])
                 }
                 if entry.kind.showsBatchSelection || entry.cleanupAction != nil {
                     Spacer(minLength: 2)
                     if store.cleaningEntryID == entry.id {
                         ProgressView().controlSize(.mini)
-                        Text("正在清理…").foregroundStyle(.secondary)
+                        Text(L10n.tr("Cleaning…")).foregroundStyle(.secondary)
                     } else {
                         Button(entry.cleanupTitle, role: .destructive) { store.requestCleanup(entry) }
                             .disabled(!store.canClean(entry) || store.pendingConfirmation != nil)
@@ -254,13 +254,13 @@ struct DeveloperStorageView: View {
             }
             .controlSize(.mini)
             if entry.canListCleanupCandidates {
-                Button("查看可清理项") { store.loadCleanupCandidates(entry) }
+                Button(L10n.tr("View Cleanup Candidates")) { store.loadCleanupCandidates(entry) }
                     .controlSize(.mini)
                     .disabled(store.isBusy || store.pendingConfirmation != nil || store.isStale(.codexData))
                 if let error = store.candidateErrors[entry.id] { warning(error) }
                 if let candidates = store.cleanupCandidates[entry.id] {
                     if candidates.isEmpty {
-                        Text("没有符合白名单或日志保留期的可清理文件").font(.caption2).foregroundStyle(.secondary)
+                        Text(L10n.tr("No files match the allowlist or log retention period")).font(.caption2).foregroundStyle(.secondary)
                     } else {
                         LazyVStack(alignment: .leading, spacing: 8) {
                             ForEach(candidates) { file in cleanupFileRow(file) }
@@ -281,12 +281,12 @@ struct DeveloperStorageView: View {
         let entries = store.selectableEntries(kind)
         let selectedCount = entries.filter { store.isSelected($0) }.count
         return HStack(spacing: 8) {
-            Button("全选") { store.selectAll(kind) }
+            Button(L10n.tr("Select All")) { store.selectAll(kind) }
                 .disabled(!entries.contains { store.canClean($0) && !store.isSelected($0) })
-            Button("全部取消") { store.deselectAll(kind) }
+            Button(L10n.tr("Deselect All")) { store.deselectAll(kind) }
                 .disabled(selectedCount == 0)
             Spacer(minLength: 0)
-            Text("已选 \(selectedCount) 项").foregroundStyle(.secondary)
+            Text(L10n.tr("%@ selected", "\(selectedCount)")).foregroundStyle(.secondary)
         }
         .font(.caption)
         .controlSize(.mini)
@@ -296,7 +296,7 @@ struct DeveloperStorageView: View {
     private func cleanupFileRow(_ entry: DeveloperStorageEntry) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Toggle("选择 \(StoragePathLabel.string(entry.name))", isOn: Binding(
+                Toggle(L10n.tr("Select %@", "\(StoragePathLabel.string(entry.name))"), isOn: Binding(
                     get: { store.isSelected(entry) }, set: { store.setSelected($0, entry: entry) }
                 ))
                 .toggleStyle(.checkbox)
@@ -307,11 +307,11 @@ struct DeveloperStorageView: View {
             }
             Text(StoragePathLabel.string(entry.path)).font(.caption2.monospaced()).textSelection(.enabled)
             if let modifiedAt = entry.modifiedAt {
-                Text("修改于 \(modifiedAt.formatted())").foregroundStyle(.secondary)
+                Text(L10n.tr("Modified at %@", "\(modifiedAt.formatted())")).foregroundStyle(.secondary)
             }
             HStack {
                 Spacer()
-                Button("永久删除", role: .destructive) { store.requestCleanup(entry) }
+                Button(L10n.tr("Delete Permanently"), role: .destructive) { store.requestCleanup(entry) }
                     .controlSize(.mini)
             }
         }
@@ -330,7 +330,7 @@ private struct StorageCleanupConfirmationView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(request.title).font(.headline)
-            Text("请核对以下具体条目。操作不可恢复，每项执行前都会重新检查；失败项不会自动重试。")
+            Text(L10n.tr("Review the exact items below. This operation cannot be undone. Each item is checked again before cleanup. Failed items will not be retried automatically."))
                 .font(.caption).foregroundStyle(.secondary)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
@@ -347,7 +347,7 @@ private struct StorageCleanupConfirmationView: View {
             }
             HStack {
                 Spacer()
-                Button("取消", action: cancel).keyboardShortcut(.cancelAction)
+                Button(L10n.tr("Cancel"), action: cancel).keyboardShortcut(.cancelAction)
                 Button(request.actionTitle, role: .destructive, action: confirm)
             }
         }

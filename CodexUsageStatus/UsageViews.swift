@@ -27,46 +27,46 @@ struct UsageMenuBarLabel: View {
                 .accessibilityLabel(accessibilityText)
                 .help(accessibilityText)
         } else {
-            Text("Codex 用量不可用")
+            Text(L10n.tr("Codex usage unavailable"))
         }
     }
 
     private var accessibilityText: String {
         let metrics = SystemMetric.allCases.filter { settings.systemMonitor.menuBar.contains($0) }.map {
-            "\($0.title)：\(systemMetricsStore.snapshot.text(for: $0).detailText)"
+            L10n.tr("%@: %@", $0.title, systemMetricsStore.snapshot.text(for: $0).detailText)
         }
-        return ([quotaAccessibilityText] + metrics).joined(separator: "，")
+        return ([quotaAccessibilityText] + metrics).joined(separator: L10n.tr(", "))
     }
 
     private var quotaAccessibilityText: String {
         guard let snapshot = store.state.snapshot else {
-            return "Codex 用量暂不可用"
+            return L10n.tr("Codex usage is temporarily unavailable")
         }
 
-        var parts = ["Codex 用量"]
+        var parts = [L10n.tr("Codex Usage")]
         for (title, window, isVisible) in [
-            ("5 小时", snapshot.fiveHourWindow, settings.menuBarDisplayMode.showsFiveHour),
-            ("7 天", snapshot.weeklyWindow, settings.menuBarDisplayMode.showsWeekly),
+            (L10n.tr("5 hours"), snapshot.fiveHourWindow, settings.menuBarDisplayMode.showsFiveHour),
+            (L10n.tr("7 days"), snapshot.weeklyWindow, settings.menuBarDisplayMode.showsWeekly),
         ] where isVisible {
             if let window {
-                parts.append("\(title)剩余 \(window.remainingPercent)%")
+                parts.append(L10n.tr("%@ remaining: %@%%", "\(title)", "\(window.remainingPercent)"))
                 if let resetsAt = window.resetsAt {
-                    parts.append("\(title)重置时间 \(resetsAt.formatted())")
+                    parts.append(L10n.tr("%@ resets at %@", "\(title)", "\(resetsAt.formatted())"))
                 }
             } else {
-                parts.append("\(title)用量暂不可用")
+                parts.append(L10n.tr("%@ usage is temporarily unavailable", "\(title)"))
             }
         }
         if settings.showsResetCreditsInMenuBar,
            let count = snapshot.resetCreditCount, count > 0 {
-            parts.append("\(count) 张重置卡")
+            parts.append(L10n.tr("Reset credits: %@", "\(count)"))
             if let expiresAt = snapshot.nextResetCreditExpiration(after: store.menuBarNow) {
-                parts.append("最近一张重置卡到期日期 \(expiresAt.formatted(date: .numeric, time: .omitted))")
+                parts.append(L10n.tr("Next reset credit expires on %@", "\(expiresAt.formatted(date: .numeric, time: .omitted))"))
             } else {
-                parts.append("暂无可用重置卡到期时间")
+                parts.append(L10n.tr("No reset credit expiration available"))
             }
         }
-        return parts.joined(separator: "，")
+        return parts.joined(separator: L10n.tr(", "))
     }
 }
 
@@ -252,7 +252,7 @@ struct UsagePopoverView: View {
         }
         // A scroll viewport needs an explicit height when MenuBarExtra measures
         // its window. Expanded storage and connection settings scroll within it.
-        .frame(width: 340, height: min(460, (NSScreen.main?.visibleFrame.height ?? 800) - 80))
+        .frame(width: 380, height: min(460, (NSScreen.main?.visibleFrame.height ?? 800) - 80))
         .background {
             SystemMetricsVisibilityObserver { systemMetricsStore.setDetailsVisible($0) }
                 .frame(width: 0, height: 0)
@@ -279,7 +279,7 @@ struct UsagePopoverView: View {
 
     private var header: some View {
         HStack {
-            Text("Codex 用量")
+            Text(L10n.tr("Codex Usage"))
                 .font(.system(size: 17, weight: .semibold))
             Spacer()
             Button {
@@ -295,8 +295,8 @@ struct UsagePopoverView: View {
             .buttonStyle(.plain)
             .frame(width: 24, height: 24)
             .disabled(store.isRefreshing)
-            .help("立即刷新")
-            .accessibilityLabel("立即刷新")
+            .help(L10n.tr("Refresh now"))
+            .accessibilityLabel(L10n.tr("Refresh now"))
         }
         .padding(.bottom, 12)
     }
@@ -304,7 +304,7 @@ struct UsagePopoverView: View {
     private var loadingContent: some View {
         HStack(spacing: 10) {
             ProgressView().controlSize(.small)
-            Text("正在读取 Codex 用量…")
+            Text(L10n.tr("Loading Codex usage…"))
                 .foregroundStyle(.secondary)
         }
         .font(.system(size: 13))
@@ -318,25 +318,25 @@ struct UsagePopoverView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Text("窗口").frame(width: windowColumnWidth, alignment: .leading)
-                Text("剩余").frame(width: remainingColumnWidth, alignment: .leading)
-                Text("重置").frame(maxWidth: .infinity, alignment: .leading)
+                Text(L10n.tr("Window")).frame(width: windowColumnWidth, alignment: .leading)
+                Text(L10n.tr("Remaining")).frame(width: remainingColumnWidth, alignment: .leading)
+                Text(L10n.tr("Resets in")).frame(maxWidth: .infinity, alignment: .leading)
             }
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(.secondary)
             .padding(.vertical, 10)
 
             Divider()
-            quotaRow(title: "5 小时", systemImage: "clock", window: snapshot.fiveHourWindow)
+            quotaRow(title: L10n.tr("5 hours"), systemImage: "clock", window: snapshot.fiveHourWindow)
             Divider().opacity(0.5)
-            quotaRow(title: "一周", systemImage: "calendar", window: snapshot.weeklyWindow)
+            quotaRow(title: L10n.tr("Weekly"), systemImage: "calendar", window: snapshot.weeklyWindow)
 
             if snapshot.resetCreditCount != 0 {
                 Divider()
                 HStack {
-                    Label("重置卡", systemImage: "creditcard")
+                    Label(L10n.tr("Reset credits"), systemImage: "creditcard")
                     Spacer()
-                    Text(snapshot.resetCreditCount.map { "\($0) 次" } ?? "未知")
+                    Text(snapshot.resetCreditCount.map { L10n.tr("Credits: %@", "\($0)") } ?? L10n.tr("Unknown"))
                         .monospacedDigit()
                 }
                 .font(.system(size: 13))
@@ -344,7 +344,7 @@ struct UsagePopoverView: View {
             }
 
             if isStale || message != nil {
-                statusMessage(message ?? "数据可能已过期", color: .orange)
+                statusMessage(message ?? L10n.tr("Data may be out of date"), color: .orange)
                     .padding(.bottom, 10)
             }
         }
@@ -373,7 +373,7 @@ struct UsagePopoverView: View {
                         .progressViewStyle(.linear)
                         .tint(progressColor(for: window.remainingPercent))
                         .frame(height: 3)
-                        .accessibilityLabel("\(title)剩余用量")
+                        .accessibilityLabel(L10n.tr("%@ remaining quota", "\(title)"))
                 }
             }
             .frame(width: remainingColumnWidth, alignment: .leading)
@@ -385,15 +385,15 @@ struct UsagePopoverView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .help(window?.resetsAt?.formatted() ?? "Codex 未返回重置时间")
+                .help(window?.resetsAt?.formatted() ?? L10n.tr("Codex did not return a reset time"))
         }
         .frame(minHeight: 50)
-        .help(window == nil ? "Codex 未返回\(title)用量窗口" : "\(title)用量")
+        .help(window == nil ? L10n.tr("Codex did not return the %@ usage window", "\(title)") : L10n.tr("%@ usage", "\(title)"))
     }
 
     private var storageSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            disclosureHeader("开发存储", systemImage: "internaldrive", isExpanded: $isStorageExpanded) {
+            disclosureHeader(L10n.tr("Developer Storage"), systemImage: "internaldrive", isExpanded: $isStorageExpanded) {
                 storageStore.dismissOperationResult()
             }
 
@@ -410,7 +410,7 @@ struct UsagePopoverView: View {
     private var systemMetricsSection: some View {
         if !settings.systemMonitor.details.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                disclosureHeader("系统状态", systemImage: "desktopcomputer", isExpanded: $isSystemMetricsExpanded)
+                disclosureHeader(L10n.tr("System Status"), systemImage: "desktopcomputer", isExpanded: $isSystemMetricsExpanded)
 
                 if isSystemMetricsExpanded {
                     SystemMetricsDetailView(store: systemMetricsStore, settings: settings, showsHeader: false)
@@ -424,7 +424,7 @@ struct UsagePopoverView: View {
 
     private var systemMonitorSettingsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            disclosureHeader("系统监控设置", systemImage: "slider.horizontal.3", isExpanded: $isSystemMonitorSettingsExpanded)
+            disclosureHeader(L10n.tr("System Monitoring Settings"), systemImage: "slider.horizontal.3", isExpanded: $isSystemMonitorSettingsExpanded)
 
             if isSystemMonitorSettingsExpanded {
                 SystemMonitorSettingsView(settings: settings, showsHeader: false)
@@ -458,20 +458,20 @@ struct UsagePopoverView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(isExpanded.wrappedValue ? "折叠" : "展开")\(title)")
+        .accessibilityLabel(isExpanded.wrappedValue ? L10n.tr("Collapse %@", title) : L10n.tr("Expand %@", title))
     }
 
     private var menuBarSettings: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("显示模式")
+                Text(L10n.tr("Display mode"))
                 Spacer(minLength: 8)
-                Picker("状态栏用量窗口", selection: Binding(
+                Picker(L10n.tr("Menu bar usage window"), selection: Binding(
                     get: { settings.menuBarDisplayMode },
                     set: { settings.setMenuBarDisplayMode($0) }
                 )) {
                     ForEach(MenuBarDisplayMode.allCases) { mode in
-                        Text(mode == .both ? "全部" : mode.title).tag(mode)
+                        Text(mode == .both ? L10n.tr("All") : mode.title).tag(mode)
                     }
                 }
                 .labelsHidden()
@@ -482,9 +482,9 @@ struct UsagePopoverView: View {
             .frame(minHeight: 42)
 
             HStack {
-                Text("显示重置卡次数")
+                Text(L10n.tr("Show reset credits"))
                 Spacer()
-                Toggle("显示重置卡次数", isOn: Binding(
+                Toggle(L10n.tr("Show reset credits"), isOn: Binding(
                     get: { settings.showsResetCreditsInMenuBar },
                     set: { settings.setShowsResetCreditsInMenuBar($0) }
                 ))
@@ -499,9 +499,9 @@ struct UsagePopoverView: View {
 
     private var refreshSettings: some View {
         HStack {
-            Text("自动刷新")
+            Text(L10n.tr("Automatic refresh"))
             Spacer()
-            Picker("自动刷新频率", selection: Binding(
+            Picker(L10n.tr("Automatic refresh interval"), selection: Binding(
                 get: { settings.refreshInterval },
                 set: { store.setRefreshInterval($0) }
             )) {
@@ -521,9 +521,9 @@ struct UsagePopoverView: View {
     private var appSettings: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("登录时启动")
+                Text(L10n.tr("Launch at login"))
                 Spacer()
-                Toggle("登录时启动", isOn: Binding(
+                Toggle(L10n.tr("Launch at login"), isOn: Binding(
                     get: { launchAtLoginController.isEnabled },
                     set: { launchAtLoginController.setEnabled($0) }
                 ))
@@ -535,10 +535,10 @@ struct UsagePopoverView: View {
 
             if launchAtLoginController.requiresApproval {
                 HStack {
-                    Text("需要在系统设置中批准登录项")
+                    Text(L10n.tr("Approve the login item in System Settings"))
                         .foregroundStyle(.orange)
                     Spacer()
-                    Button("打开设置") { launchAtLoginController.openSystemSettings() }
+                    Button(L10n.tr("Open Settings")) { launchAtLoginController.openSystemSettings() }
                         .controlSize(.small)
                 }
                 .font(.caption)
@@ -571,8 +571,8 @@ struct UsagePopoverView: View {
                 .truncationMode(.middle)
                 .help(executablePathText)
             HStack {
-                Button("自动检测") { store.setExecutablePath(nil) }
-                Button("选择…") { chooseCodexExecutable() }
+                Button(L10n.tr("Auto-detect")) { store.setExecutablePath(nil) }
+                Button(L10n.tr("Choose…")) { chooseCodexExecutable() }
             }
             .controlSize(.small)
         }
@@ -586,24 +586,24 @@ struct UsagePopoverView: View {
             Text(updateText)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .help(store.nextRefreshAt.map { "下次刷新 \(shortTime($0))" } ?? "等待刷新")
+                .help(store.nextRefreshAt.map { L10n.tr("Next refresh %@", "\(shortTime($0))") } ?? L10n.tr("Waiting to refresh"))
             Spacer()
             Button {
                 showsConnectionSettings.toggle()
             } label: {
                 Image(systemName: "gearshape")
             }
-            .help("Codex CLI 设置")
-            .accessibilityLabel("Codex CLI 设置")
-            .accessibilityValue(showsConnectionSettings ? "已展开" : "已折叠")
+            .help(L10n.tr("Codex CLI Settings"))
+            .accessibilityLabel(L10n.tr("Codex CLI Settings"))
+            .accessibilityValue(showsConnectionSettings ? L10n.tr("Expanded") : L10n.tr("Collapsed"))
 
             Button {
                 NSApplication.shared.terminate(nil)
             } label: {
                 Image(systemName: "power")
             }
-            .help("退出 Codex Usage Status")
-            .accessibilityLabel("退出")
+            .help(L10n.tr("Quit Codex Usage Status"))
+            .accessibilityLabel(L10n.tr("Quit"))
             .keyboardShortcut("q")
         }
         .font(.system(size: 13))
@@ -613,12 +613,12 @@ struct UsagePopoverView: View {
 
     private var updateText: String {
         guard let snapshot = store.state.snapshot else {
-            return store.isRefreshing ? "正在刷新…" : "用量暂不可用"
+            return store.isRefreshing ? L10n.tr("Refreshing…") : L10n.tr("Usage unavailable")
         }
         if store.menuBarNow.timeIntervalSince(snapshot.updatedAt) < 60 {
-            return "刚刚更新"
+            return L10n.tr("Updated just now")
         }
-        return "更新于 \(shortTime(snapshot.updatedAt))"
+        return L10n.tr("Updated at %@", "\(shortTime(snapshot.updatedAt))")
     }
 
     private var statusColor: Color {
@@ -631,26 +631,26 @@ struct UsagePopoverView: View {
 
     private var executablePathText: String {
         if !settings.executablePath.isEmpty { return settings.executablePath }
-        return store.resolvedExecutablePath ?? "自动检测"
+        return store.resolvedExecutablePath ?? L10n.tr("Auto-detect")
     }
 
     private func resetTimeText(_ resetDate: Date?) -> String {
-        guard let resetDate else { return "未知" }
+        guard let resetDate else { return L10n.tr("Unknown") }
         let seconds = resetDate.timeIntervalSince(store.menuBarNow)
-        guard seconds > 0 else { return "待重置" }
+        guard seconds > 0 else { return L10n.tr("Reset due") }
         let totalMinutes = max(Int(ceil(seconds / 60)), 1)
         let days = totalMinutes / 1_440
         let hours = totalMinutes % 1_440 / 60
         let minutes = totalMinutes % 60
-        if days > 0 { return hours > 0 ? "\(days) 天 \(hours) 小时" : "\(days) 天" }
-        if hours > 0 { return minutes > 0 ? "\(hours) 小时 \(minutes) 分钟" : "\(hours) 小时" }
-        return "\(minutes) 分钟"
+        if days > 0 { return hours > 0 ? L10n.tr("%@d %@h", "\(days)", "\(hours)") : L10n.tr("%@d", "\(days)") }
+        if hours > 0 { return minutes > 0 ? L10n.tr("%@h %@m", "\(hours)", "\(minutes)") : L10n.tr("%@h", "\(hours)") }
+        return L10n.tr("%@m", "\(minutes)")
     }
 
     private func failedContent(message: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             statusMessage(message, color: .red)
-            Button("重试") { store.refreshManually() }
+            Button(L10n.tr("Retry")) { store.refreshManually() }
                 .disabled(store.isRefreshing)
                 .controlSize(.small)
         }
@@ -678,9 +678,9 @@ struct UsagePopoverView: View {
 
     private func chooseCodexExecutable() {
         let panel = NSOpenPanel()
-        panel.title = "选择 Codex CLI"
-        panel.message = "请选择 codex 可执行文件"
-        panel.prompt = "选择"
+        panel.title = L10n.tr("Choose Codex CLI")
+        panel.message = L10n.tr("Select the codex executable")
+        panel.prompt = L10n.tr("Choose")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -761,7 +761,7 @@ final class UsagePopoverDismissView: NSView {
 #Preview("Error") {
     UsagePopoverView(
         store: .preview(
-            state: .failed(message: "未找到 Codex CLI")
+            state: .failed(message: L10n.tr("Codex CLI not found"))
         ),
         storageStore: DeveloperStorageStore(),
         settings: UserSettings(),

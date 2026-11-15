@@ -85,7 +85,7 @@ final class StorageCleanupSafetyTests: XCTestCase {
         XCTAssertNotNil(prepared.manifest)
         XCTAssertTrue(prepared.confirmationMessage.contains(runtimeID))
         XCTAssertTrue(prepared.confirmationMessage.contains(deviceID))
-        XCTAssertTrue(prepared.confirmationMessage.contains("重新安装"))
+        XCTAssertTrue(prepared.confirmationMessage.contains(L10n.tr("\nAfter uninstalling, associated devices will require this runtime to be reinstalled. Their data will be preserved.")))
         let result = await service.cleanBatch([prepared]) { _ in }
         XCTAssertFalse(result.hasFailures)
         XCTAssertFalse(FileManager.default.fileExists(atPath: asset.path))
@@ -215,7 +215,7 @@ final class StorageCleanupSafetyTests: XCTestCase {
         XCTAssertEqual(caches.count, 3)
         XCTAssertTrue(caches.allSatisfy { $0.canClean && $0.manifest?.isSafeFile == true && $0.cleanupAction == .codexFile(.cache) })
         XCTAssertEqual(Set(oldLogs.map(\.name)), Set(["codex.log", "codex.log.1", "codex.log.2.gz"]))
-        XCTAssertTrue(oldLogs.allSatisfy { $0.confirmationMessage.contains("排查历史问题") })
+        XCTAssertTrue(oldLogs.allSatisfy { $0.confirmationMessage.contains(L10n.tr("This permanently deletes this old log. It will no longer be available for troubleshooting past issues.")) })
         let protected = try XCTUnwrap(scan.entries.first { $0.name == "archived_sessions" })
         do { _ = try await service.cleanupCandidates(in: protected); XCTFail("Protected data cannot be listed for cleanup") }
         catch { XCTAssertFalse(protected.canClean) }

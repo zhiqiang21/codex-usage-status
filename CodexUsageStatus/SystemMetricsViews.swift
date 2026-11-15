@@ -72,7 +72,7 @@ struct SystemMetricsDetailView: View {
         if !settings.systemMonitor.details.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 if showsHeader {
-                    Label("系统状态", systemImage: "desktopcomputer")
+                    Label(L10n.tr("System Status"), systemImage: "desktopcomputer")
                         .font(.subheadline.weight(.medium))
                 }
                 ForEach(SystemMetric.allCases.filter { settings.systemMonitor.details.contains($0) }) { metric in
@@ -92,11 +92,11 @@ struct SystemMetricsDetailView: View {
                 }
                 if !settings.systemMonitor.details.isDisjoint(with: [.upload, .download]),
                    case let .value(network) = store.snapshot.network {
-                    Text("网络接口：\(network.interface)")
+                    Text(L10n.tr("Network interface: %@", "\(network.interface)"))
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 if settings.systemMonitor.details.contains(.memory) {
-                    Text("内存为已用估算：匿名内存扣除可清除部分，加 wired 与压缩器实际占用。")
+                    Text(L10n.tr("Memory is an estimate: anonymous memory minus purgeable pages, plus wired and actual compressor usage."))
                         .font(.caption2).foregroundStyle(.secondary)
                 }
             }
@@ -112,10 +112,10 @@ struct SystemMetricsDetailView: View {
         }
         if case let .value(capacity) = reading {
             ProgressView(value: capacity.percent, total: 100)
-            Text("已用 \(SystemMetricFormatter.capacity(capacity.usedBytes)) / 共 \(SystemMetricFormatter.capacity(capacity.totalBytes))")
+            Text(L10n.tr("Used %@ / Total %@", "\(SystemMetricFormatter.capacity(capacity.usedBytes))", "\(SystemMetricFormatter.capacity(capacity.totalBytes))"))
                 .foregroundStyle(.secondary)
             if metric == .disk {
-                Text("可用 \(SystemMetricFormatter.capacity(capacity.availableBytes)) · 系统盘")
+                Text(L10n.tr("Available %@ · Startup disk", "\(SystemMetricFormatter.capacity(capacity.availableBytes))"))
                     .foregroundStyle(.secondary)
             }
         }
@@ -129,13 +129,13 @@ struct SystemMonitorSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if showsHeader {
-                Text("系统监控设置").font(.subheadline.weight(.medium))
+                Text(L10n.tr("System Monitoring Settings")).font(.subheadline.weight(.medium))
             }
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                 GridRow {
-                    Text("指标")
-                    Text("菜单栏")
-                    Text("详情")
+                    Text(L10n.tr("Metric"))
+                    Text(L10n.tr("Menu Bar"))
+                    Text(L10n.tr("Details"))
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 ForEach(SystemMetric.allCases) { metric in
@@ -147,8 +147,8 @@ struct SystemMonitorSettingsView: View {
                     }
                 }
             }
-            Text("系统刷新频率").font(.caption).foregroundStyle(.secondary)
-            Picker("系统刷新频率", selection: Binding(
+            Text(L10n.tr("System refresh interval")).font(.caption).foregroundStyle(.secondary)
+            Picker(L10n.tr("System refresh interval"), selection: Binding(
                 get: { settings.systemMonitor.interval },
                 set: { settings.setSystemRefreshInterval($0) }
             )) {
@@ -158,19 +158,19 @@ struct SystemMonitorSettingsView: View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
-            Text("磁盘容量每 30 秒更新；系统刷新独立于 Codex 用量刷新。")
+            Text(L10n.tr("Disk capacity updates every 30 seconds. System monitoring refreshes independently of Codex usage."))
                 .font(.caption2).foregroundStyle(.secondary)
         }
     }
 
     private func visibilityToggle(_ metric: SystemMetric, at location: SystemMetricLocation) -> some View {
-        Toggle("\(metric.title)\(location == .menuBar ? "菜单栏" : "详情")显示", isOn: Binding(
+        Toggle(L10n.tr("Show %@ in %@", "\(metric.title)", "\(location == .menuBar ? L10n.tr("Menu Bar") : L10n.tr("Details"))"), isOn: Binding(
             get: { settings.systemMonitor.contains(metric, at: location) },
             set: { settings.setSystemMetric(metric, at: location, visible: $0) }
         ))
         .labelsHidden()
         .toggleStyle(.checkbox)
-        .accessibilityLabel("\(metric.title)\(location == .menuBar ? "菜单栏" : "详情")显示")
+        .accessibilityLabel(L10n.tr("Show %@ in %@", "\(metric.title)", "\(location == .menuBar ? L10n.tr("Menu Bar") : L10n.tr("Details"))"))
     }
 }
 
@@ -184,10 +184,10 @@ extension MetricReading where Value == String {
     }
     var detailText: String {
         switch self {
-        case .waiting: "等待采样…"
+        case .waiting: L10n.tr("Waiting for sample…")
         case let .value(value): value
-        case let .unavailable(message): "不可用：\(message)"
-        case .disconnected: "未连接"
+        case let .unavailable(message): L10n.tr("Unavailable: %@", "\(message)")
+        case .disconnected: L10n.tr("Disconnected")
         }
     }
 }

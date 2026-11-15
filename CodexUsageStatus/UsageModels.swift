@@ -10,11 +10,11 @@ enum MenuBarDisplayMode: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .fiveHour:
-            "5 小时"
+            L10n.tr("5 hours")
         case .weekly:
-            "一周"
+            L10n.tr("Weekly")
         case .both:
-            "两者都显示"
+            L10n.tr("Show both")
         }
     }
 
@@ -33,13 +33,13 @@ enum RefreshInterval: Int, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .fiveMinutes:
-            "5 分钟"
+            L10n.tr("5 minutes")
         case .tenMinutes:
-            "10 分钟"
+            L10n.tr("10 minutes")
         case .thirtyMinutes:
-            "30 分钟"
+            L10n.tr("30 minutes")
         case .oneHour:
-            "1 小时"
+            L10n.tr("1 hour")
         }
     }
 
@@ -247,7 +247,7 @@ struct UsageMenuBarPresentation: Equatable, Sendable {
     ) -> String {
         guard let resetDate else { return "--" }
 
-        guard resetDate > now else { return "待重置" }
+        guard resetDate > now else { return L10n.tr("Reset due") }
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -267,7 +267,7 @@ struct UsageMenuBarPresentation: Equatable, Sendable {
         // boundaries without treating a local day as a fixed 86,400 seconds.
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
            calendar.isDate(resetDate, inSameDayAs: tomorrow) {
-            return "明 \(formatter.string(from: resetDate))"
+            return L10n.tr("Tmr %@", "\(formatter.string(from: resetDate))")
         }
 
         formatter.dateFormat = "MM.dd HH:mm"
@@ -281,7 +281,7 @@ enum UsageSelectionError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .usageWindowsUnavailable:
-            "Codex 未返回 5 小时或 7 天用量窗口"
+            L10n.tr("Codex did not return a 5-hour or 7-day usage window")
         }
     }
 }

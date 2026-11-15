@@ -25,26 +25,26 @@ struct StorageTrendView: View, Equatable {
         return VStack(alignment: .leading, spacing: 6) {
             Divider()
             HStack {
-                Text("体积趋势").font(.caption.weight(.medium))
-                    .help("截至 \(end.formatted())；随目录扫描更新")
+                Text(L10n.tr("Size Trend")).font(.caption.weight(.medium))
+                    .help(L10n.tr("As of %@; updated with directory scans", "\(end.formatted())"))
                 Spacer(minLength: 4)
-                Picker("趋势时间范围", selection: $period) {
+                Picker(L10n.tr("Trend period"), selection: $period) {
                     ForEach(StorageTrendPeriod.allCases) { period in
                         Text(period.title).tag(period)
                     }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 88)
-                .help("最近 7 天或 30 天")
-                .accessibilityLabel("\(kind.title)趋势时间范围")
+                .frame(width: 110)
+                .help(L10n.tr("Last 7 or 30 days"))
+                .accessibilityLabel(L10n.tr("%@ trend period", "\(kind.title)"))
             }
             if let latestSizeText = series.latestSizeText {
                 HStack {
-                    Text("最近 \(latestSizeText)")
+                    Text(L10n.tr("Latest %@", "\(latestSizeText)"))
                     Spacer(minLength: 4)
                     if let changeText = series.changeText {
-                        Text("变化 \(changeText)")
+                        Text(L10n.tr("Change %@", "\(changeText)"))
                     }
                 }
                 .font(.caption2.monospacedDigit())
@@ -52,13 +52,13 @@ struct StorageTrendView: View, Equatable {
             }
             Chart {
                 ForEach(series.points) { sample in
-                    LineMark(x: .value("时间", sample.date), y: .value("体积 (MiB)", Double(sample.bytes) / 1_048_576))
+                    LineMark(x: .value(L10n.tr("Time"), sample.date), y: .value(L10n.tr("Size (MiB)"), Double(sample.bytes) / 1_048_576))
                         .interpolationMethod(.monotone)
                         .foregroundStyle(Color.accentColor)
                         .lineStyle(StrokeStyle(lineWidth: 2))
                 }
                 if let last = series.points.last {
-                    PointMark(x: .value("时间", last.date), y: .value("体积 (MiB)", Double(last.bytes) / 1_048_576))
+                    PointMark(x: .value(L10n.tr("Time"), last.date), y: .value(L10n.tr("Size (MiB)"), Double(last.bytes) / 1_048_576))
                         .foregroundStyle(Color.accentColor)
                         .symbolSize(22)
                 }
@@ -92,14 +92,14 @@ struct StorageTrendView: View, Equatable {
             .frame(height: 110)
             .overlay {
                 if series.sampleCount == 0 {
-                    Text("暂无完整扫描记录")
+                    Text(L10n.tr("No complete scans yet"))
                         .font(.caption).foregroundStyle(.secondary)
                         .padding(6)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
                 }
             }
-            .accessibilityLabel("\(kind.title)最近\(period == .week ? "7 天" : "30 天")体积趋势")
-            Text(series.sampleCount == 1 ? "已记录 1 次扫描，后续扫描后形成曲线。" : "仅记录完整扫描；曲线连接采样点，未扫描时段无实测数据。")
+            .accessibilityLabel(L10n.tr("%@ size trend over the last %@", "\(kind.title)", "\(period == .week ? L10n.tr("7 days") : L10n.tr("30 days"))"))
+            Text(series.sampleCount == 1 ? L10n.tr("One scan recorded. A curve will appear after more scans.") : L10n.tr("Only complete scans are recorded. Lines connect samples; no measurements exist between scans."))
                 .font(.caption2).foregroundStyle(.tertiary)
         }
         .controlSize(.mini)

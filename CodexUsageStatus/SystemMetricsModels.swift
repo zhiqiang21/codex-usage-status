@@ -6,11 +6,11 @@ enum SystemMetric: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .disk: "磁盘"
-        case .memory: "内存"
+        case .disk: L10n.tr("Disk")
+        case .memory: L10n.tr("Memory")
         case .cpu: "CPU"
-        case .upload: "上传"
-        case .download: "下载"
+        case .upload: L10n.tr("Upload")
+        case .download: L10n.tr("Download")
         }
     }
     var systemImage: String {
@@ -31,7 +31,7 @@ enum SystemMetricLocation: String, Sendable {
 enum SystemRefreshInterval: Int, CaseIterable, Identifiable, Sendable {
     case oneSecond = 1, twoSeconds = 2, fiveSeconds = 5
     var id: Int { rawValue }
-    var title: String { "\(rawValue) 秒" }
+    var title: String { L10n.tr("%@ s", "\(rawValue)") }
 }
 
 struct SystemMonitorSettings: Equatable, Sendable {

@@ -24,8 +24,8 @@ final class LaunchAtLoginController: ObservableObject {
             }
         } catch {
             errorMessage = enabled
-                ? "无法启用登录时启动，请检查系统登录项设置"
-                : "无法关闭登录时启动，请检查系统登录项设置"
+                ? L10n.tr("Unable to enable launch at login. Check Login Items in System Settings")
+                : L10n.tr("Unable to disable launch at login. Check Login Items in System Settings")
         }
 
         refreshStatus()

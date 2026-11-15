@@ -27,9 +27,9 @@ final class RefreshIntervalTests: XCTestCase {
                     launchAtLoginController: LaunchAtLoginController()
                 ))
 
-                let size = controller.sizeThatFits(in: CGSize(width: 340, height: 0))
+                let size = controller.sizeThatFits(in: CGSize(width: 380, height: 0))
 
-                XCTAssertEqual(size.width, 340)
+                XCTAssertEqual(size.width, 380)
                 XCTAssertGreaterThan(size.height, 0, "Popover collapsed in \(mode.rawValue) mode")
                 XCTAssertLessThanOrEqual(size.height, 480)
                 XCTAssertLessThanOrEqual(size.height, NSScreen.main?.visibleFrame.height ?? 800)
@@ -536,7 +536,7 @@ final class RefreshIntervalTests: XCTestCase {
             weeklyReset: "2027-01-03T10:00:00Z",
             timeZone: "Asia/Shanghai"
         )
-        XCTAssertEqual(presentation.fiveHourResetText, "明 01:00")
+        XCTAssertEqual(presentation.fiveHourResetText, L10n.tr("Tmr %@", "01:00"))
         XCTAssertEqual(presentation.resetText, "01.03")
     }
 
@@ -559,7 +559,7 @@ final class RefreshIntervalTests: XCTestCase {
             timeZone: "Asia/Shanghai"
         )
         XCTAssertEqual(presentation.fiveHourResetText, "--")
-        XCTAssertEqual(presentation.resetText, "待重置")
+        XCTAssertEqual(presentation.resetText, L10n.tr("Reset due"))
     }
 
     private func resetPresentation(
@@ -605,7 +605,7 @@ final class RefreshIntervalTests: XCTestCase {
         XCTAssertEqual(presentation.remainingText, "--%")
         XCTAssertEqual(presentation.resetText, "--")
         XCTAssertEqual(presentation.fiveHourRemainingText, "0%")
-        XCTAssertEqual(presentation.fiveHourResetText, "待重置")
+        XCTAssertEqual(presentation.fiveHourResetText, L10n.tr("Reset due"))
     }
 
     func testMenuBarPresentationUsesStableUnavailableStates() {
