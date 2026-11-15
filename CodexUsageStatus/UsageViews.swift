@@ -60,6 +60,11 @@ struct UsageMenuBarLabel: View {
         if settings.showsResetCreditsInMenuBar,
            let count = snapshot.resetCreditCount, count > 0 {
             parts.append("\(count) 张重置卡")
+            if let expiresAt = snapshot.nextResetCreditExpiration(after: store.menuBarNow) {
+                parts.append("最近一张重置卡到期日期 \(expiresAt.formatted(date: .numeric, time: .omitted))")
+            } else {
+                parts.append("暂无可用重置卡到期时间")
+            }
         }
         return parts.joined(separator: "，")
     }
@@ -118,7 +123,7 @@ struct UsageMenuBarGraphic: View {
                 separator
                 metric(
                     value: resetCreditText,
-                    secondaryText: "重置卡",
+                    secondaryText: presentation.resetCreditExpirationText,
                     systemImage: "creditcard",
                     minimumWidth: 30
                 )

@@ -149,7 +149,7 @@ final class RefreshIntervalTests: XCTestCase {
         let presentation = UsageMenuBarPresentation(
             remainingText: "76%", resetText: "11.08",
             fiveHourRemainingText: "42%", fiveHourResetText: "18:00",
-            resetCreditText: "2"
+            resetCreditText: "2", resetCreditExpirationText: "11.20"
         )
         let light = try XCTUnwrap(UsageMenuBarGraphic.render(
             presentation: presentation, displayMode: .both,
@@ -454,6 +454,42 @@ final class RefreshIntervalTests: XCTestCase {
         XCTAssertEqual(presentation.resetCreditText, "2")
         XCTAssertEqual(presentation.fiveHourRemainingText, "42%")
         XCTAssertEqual(presentation.fiveHourResetText, "05:01")
+    }
+
+    func testMenuBarShowsNextCreditExpirationDateAndAdvancesAfterExpiry() throws {
+        let formatter = ISO8601DateFormatter()
+        let now = try XCTUnwrap(formatter.date(from: "2026-11-08T08:00:00Z"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let first = now.addingTimeInterval(3600)
+        let second = now.addingTimeInterval(24 * 3600)
+        let snapshot = UsageSnapshot(
+            weeklyWindow: nil,
+            fiveHourWindow: UsageWindowSnapshot(remainingPercent: 50, resetsAt: nil),
+            resetCreditCount: 2,
+            resetCreditExpirations: [second, now.addingTimeInterval(-1), first],
+            updatedAt: now
+        )
+        let state = UsageViewState.loaded(snapshot: snapshot, isStale: false, message: nil)
+        XCTAssertEqual(UsageMenuBarPresentation.make(
+            from: state, now: now, calendar: calendar
+        ).resetCreditExpirationText, "11.08")
+        XCTAssertEqual(UsageMenuBarPresentation.make(
+            from: state, now: first, calendar: calendar
+        ).resetCreditExpirationText, "11.09")
+        XCTAssertEqual(UsageMenuBarPresentation.make(
+            from: state, now: second, calendar: calendar
+        ).resetCreditExpirationText, "--")
+
+        let withoutDetails = UsageSnapshot(
+            weeklyWindow: nil, fiveHourWindow: snapshot.fiveHourWindow,
+            resetCreditCount: 2, updatedAt: now
+        )
+        let presentation = UsageMenuBarPresentation.make(
+            from: .loaded(snapshot: withoutDetails, isStale: false, message: nil), now: now
+        )
+        XCTAssertEqual(presentation.resetCreditText, "2")
+        XCTAssertEqual(presentation.resetCreditExpirationText, "--")
     }
 
     func testMenuBarPresentationHidesZeroOrUnknownCredits() {

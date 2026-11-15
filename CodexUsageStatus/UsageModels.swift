@@ -138,7 +138,12 @@ struct UsageSnapshot: Equatable, Sendable {
     let weeklyWindow: UsageWindowSnapshot?
     let fiveHourWindow: UsageWindowSnapshot?
     let resetCreditCount: Int?
+    var resetCreditExpirations: [Date] = []
     let updatedAt: Date
+
+    func nextResetCreditExpiration(after now: Date) -> Date? {
+        resetCreditExpirations.filter { $0 > now }.min()
+    }
 
     var resetDates: [Date] {
         [weeklyWindow?.resetsAt, fiveHourWindow?.resetsAt].compactMap { $0 }
@@ -180,6 +185,7 @@ struct UsageMenuBarPresentation: Equatable, Sendable {
     let fiveHourRemainingText: String
     let fiveHourResetText: String
     let resetCreditText: String?
+    var resetCreditExpirationText: String = "--"
 
     static func make(
         from state: UsageViewState,
@@ -220,7 +226,11 @@ struct UsageMenuBarPresentation: Equatable, Sendable {
             ),
             resetCreditText: snapshot.resetCreditCount.flatMap {
                 $0 > 0 ? String($0) : nil
-            }
+            },
+            resetCreditExpirationText: resetLabel(
+                until: snapshot.nextResetCreditExpiration(after: now), now: now,
+                calendar: calendar, style: .date
+            )
         )
     }
 
@@ -299,6 +309,10 @@ enum UsageSnapshotBuilder {
             resetCreditCount: response.rateLimitResetCredits.flatMap {
                 safeNonnegativeInt($0.availableCount)
             },
+            resetCreditExpirations: (response.rateLimitResetCredits?.credits ?? [])
+                .filter { $0.status == "available" }
+                .compactMap { $0.expiresAt }
+                .map { Date(timeIntervalSince1970: TimeInterval($0)) },
             updatedAt: now
         )
     }
@@ -330,6 +344,7 @@ enum UsageSnapshotBuilder {
                 windowSnapshot(from: $0, preserving: snapshot.fiveHourWindow)
             } ?? snapshot.fiveHourWindow,
             resetCreditCount: snapshot.resetCreditCount,
+            resetCreditExpirations: snapshot.resetCreditExpirations,
             updatedAt: now
         )
     }

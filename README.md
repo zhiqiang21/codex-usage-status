@@ -2,271 +2,123 @@
 
 English | [简体中文](README.zh-CN.md)
 
+A native macOS menu bar app for Codex usage, developer storage cleanup, and system monitoring.
 
-| Status Bar | Expand Panel 1 | Expand Panel 2 |
+- See remaining quota and reset times for the 5-hour and weekly windows, plus available reset credits.
+- Inspect developer storage and confirm individual or batch cleanup.
+- Show disk, memory, CPU, and network metrics in the menu bar or details panel.
+
+Codex usage comes from the local `codex app-server`. Account access is read-only: the app reuses your CLI login, does not consume reset credits, and does not directly read or record authentication files.
+
+| Menu bar | Usage panel | Storage panel |
 | :---: | :---: | :---: |
 | <img src="./image/iShot_2026-11-08_15.48.58.png" width="50%"> | <img src="./image/iShot_2026-11-08_15.52.48.png" width="30%"> | <img src="./image/iShot_2026-11-08_15.53.04.png" width="30%"> |
 
+## Install
 
-A native macOS menu bar utility that reads data from the local `codex app-server` and displays:
+Requires **macOS 13+**. Codex usage requires the Codex CLI signed in with a **ChatGPT account**; API key and Amazon Bedrock logins are not supported. Storage and system monitoring work independently of Codex login. Xcode is needed only for building the app and managing simulators.
 
-- Remaining capacity in the 5-hour and 7-day windows
-- Time until each window resets
-- Available reset credits, shown only when the count is greater than zero
+1. Download `CodexUsageStatus-<version>-macos-universal.zip` from [Releases](https://github.com/zhiqiang21/codex-usage-status/releases). It supports Apple silicon and Intel Macs.
+2. Extract the ZIP, move `CodexUsageStatus.app` to Applications, and open it.
+3. Look for the app in the menu bar. It has no Dock icon or standalone window.
 
-Codex account access is read-only. The app does not consume reset credits or directly read or record Codex authentication files. It also measures local developer storage and offers single-item and batch permanent cleanup with confirmation of the exact item list.
-
-## Requirements
-
-- macOS 13 or later
-- Codex CLI installed and signed in with a ChatGPT account
-
-Regular users do not need Xcode. Xcode is only required for development or building the app from source.
-
-The app automatically checks these common Codex CLI locations:
-
-```text
-/opt/homebrew/bin/codex
-/usr/local/bin/codex
-```
-
-You can also select the `codex` executable manually from the app popover.
-
-## Download and install
-
-1. Download the latest `CodexUsageStatus-<version>-macos-universal.zip` from the project releases page.
-2. Double-click the ZIP file to extract `CodexUsageStatus.app`.
-3. Drag `CodexUsageStatus.app` into the Applications folder.
-4. Open `CodexUsageStatus` from Applications.
-5. Look for the usage display on the right side of the macOS menu bar.
-
-This is a menu bar app. It does not open a normal window or show an icon in the Dock.
-
-A release signed and notarized by Apple can be opened normally. If you received an ad-hoc signed development build, right-click the app in Finder, choose **Open**, and confirm **Open** again. Only do this for packages from a source you trust.
-
-## First-time setup
-
-### 1. Check the Codex CLI
-
-Open Terminal and run:
-
-```bash
-codex --version
-```
-
-If a version number appears, the Codex CLI is installed. If Terminal reports `command not found` and Node.js with npm is already installed, use the official installation command:
+If the CLI is not installed, install it with npm (requires Node.js), then sign in:
 
 ```bash
 npm install --global @openai/codex
-```
-
-Sign in with your ChatGPT account:
-
-```bash
 codex login
-```
-
-Complete the browser sign-in flow, then verify the session:
-
-```bash
 codex login status
 ```
 
-Codex Usage Status reuses the Codex CLI session. You do not need to enter an API key in the app.
+The app detects `/opt/homebrew/bin/codex` and `/usr/local/bin/codex`. For another location, click the gear in the panel and select the executable under Codex CLI settings. No API key is needed in the app.
 
-> The current version supports Codex signed in with a ChatGPT account. API key and Amazon Bedrock authentication cannot provide the account usage shown by this app.
+Development builds use ad-hoc signing and may trigger macOS security warnings.
 
-### 2. Read the menu bar display
+## Usage
 
-The menu bar uses two rows without an added background or outer border, with thin separators between groups. Both windows are shown by default. Light appearance uses dark glyphs; dark appearance uses white glyphs:
+The app UI is currently in Chinese. Control names below are English translations; Chinese text is quoted where it helps identify a label.
 
-- The clock icon identifies the remaining percentage in the 5-hour window. Its second row shows the local 24-hour reset time, such as `18:00`; a next-day reset is marked `明 01:00`.
-- The calendar icon identifies the remaining percentage in the weekly window. Its second row shows the reset date as `MM.dd`, such as `11.08`.
-- The card icon identifies available reset credits, with **重置卡** on its second row. The **显示重置卡次数** toggle defaults to on. This group is hidden when disabled, zero, or unavailable. The details popover hides the row when the count is zero and shows **未知** when unavailable.
-- `…` means loading. `--%` / `--` means the quota or reset time is unavailable. **待重置** means the reset time has been reached and a backend update is pending. The other window remains visible.
+| Icon | Top row | Bottom row |
+| --- | --- | --- |
+| Clock | 5-hour quota remaining | Local reset time, e.g. `18:00`; `明 01:00` means tomorrow at 01:00 |
+| Calendar | Weekly quota remaining | Reset date (`MM.dd`) |
+| Card | Available reset credits | Earliest future expiration date returned for available credits (`MM.dd`), or `--` if absent |
 
-Use **显示模式** (Display mode) to choose **5 小时** (5 hours), **一周** (weekly), or **全部** (both). Changes apply immediately and persist across launches. Hover over the status item for complete reset dates. Date labels and countdowns in the details table update locally once per minute.
+Hover for full dates. Reset credits are hidden in the menu bar when disabled, zero, or unavailable. The details panel hides zero credits and shows unknown values as `未知`. `…` means loading, `--%` / `--` means unavailable, and `待重置` means a reset is due and awaiting a server update.
 
-### 3. View details
+Click the menu bar display to see quota details and settings:
 
-Click the usage display in the menu bar to open the details popover. It includes:
+- **Display mode** (`显示模式`): show the 5-hour window, weekly window, or both. **Show reset credits** (`显示重置卡次数`) is on by default.
+- **Automatic refresh**: 5, 10, 30, or 60 minutes; default **10 minutes**. The refresh button fetches data immediately. The app also reconciles usage at quota resets and after waking with stale data.
+- **Launch at login**: enable after moving the app to Applications. Check System Settings → General → Login Items & Extensions if approval is needed.
+- **Quit**: use the button at the bottom of the panel.
 
-- A compact Window / Remaining / Reset table with percentages, progress bars, and reset countdowns for both windows
-- Exact reset dates in countdown tooltips
-- Available reset credits (hidden when zero; shown as **未知** when unavailable)
-- Last update in the footer, with the next refresh time in its tooltip
+Settings persist across launches. Countdown and date labels update locally once per minute; server notifications merge into existing data without extra polling.
 
-Use the refresh button in the upper-right corner to fetch fresh data immediately.
+## Developer storage
 
-### 4. Configure automatic refresh
+Expand a category to view items sorted by size, inspect paths and modification times, or reveal an item in Finder. Scans run in the background when the panel first opens; reopening refreshes results older than **5 minutes**. Manual refresh is available per category. Failed or partial scans are marked instead of shown as zero usage.
 
-Choose one of the available intervals in the **Automatic refresh** section:
+| Category / path | Cleanup available |
+| --- | --- |
+| Device support — `~/Library/Developer/Xcode/iOS DeviceSupport` | Selected versions; support files may need to be downloaded again for device debugging |
+| Simulator devices — `~/Library/Developer/CoreSimulator/Devices` | Shut-down devices and verified unavailable `Creating` remnants; deletes their apps and local data, not OS runtimes |
+| Simulator runtimes — `/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime` | Individual uninstall through `simctl`, when the runtime is ready, system-deletable, and associated devices are idle |
+| Codex data — `~/.codex` | Selected cache JSON files and logs older than 7 days; see below |
+| User caches — `~/Library/Caches` | Verified app cache directories while the owning app and its helpers are not running |
+| Application support — `~/Library/Application Support` | Read-only |
+| Temporary files — `/private/tmp` | Eligible files and directories owned by the current user, with no descendants modified in the last 3 days |
 
-- 5 minutes
-- 10 minutes, the default
-- 30 minutes
-- 1 hour
+For Codex data, **View cleanup candidates** loads files under `cache` or `log`. Cache cleanup is limited to immediate `.json` files in `cache/codex_apps_server_info`, `cache/codex_apps_tools`, and `cache/remote_plugin_catalog`. Log cleanup covers `.log` files, numbered rotations, and their `.gz` forms older than 7 days. Sessions, generated images, databases, authentication, settings, plugins, worktrees, and unknown caches are protected. Scans read metadata, not file contents. Caches may regenerate; deleted logs are no longer available for troubleshooting.
 
-The selection is saved automatically. The app also reconciles usage after the Mac wakes from sleep and when a quota reset is reached.
+Select eligible items and choose **Delete selected**, or use an individual cleanup button. Every operation requires confirmation of the exact targets. Batch cleanup runs serially and reports each result; runtime uninstalls require separate confirmation. Deletion is permanent. Removing a runtime requires reinstalling it before its devices can be used again.
 
-### 5. Launch at login
+Before cleanup, the app rechecks target identity, paths, occupancy, and applicable device state. Changed targets, symlinks, mount points, or incomplete checks block deletion. The app does not shut down devices, retry failed deletions, or fall back to deleting simulator folders directly. These checks reflect a point in time; eligibility does not prove data is no longer needed.
 
-After moving the app into Applications, enable **Launch at login** in the details popover. If macOS asks for approval, open:
+Sizes use MiB/GiB and allocated disk space. Cleanup reports measured usage and volume free-space changes where available; APFS sharing, snapshots, and other processes mean these may differ from the listed size.
 
-```text
-System Settings → General → Login Items & Extensions
-```
+Each category has a **Week / Month** size chart covering up to 30 days. History stays local, uses complete scans without extra polling, and does not store directory contents or child paths. Failed scans are not recorded as zero.
 
-### 6. Quit the app
-
-Click the usage display in the menu bar, then click **Quit** at the bottom of the popover.
-
-### Developer storage and batch cleanup
-
-The **Developer storage** section measures these directories independently of Codex login or usage requests:
-
-```text
-~/Library/Developer/Xcode/iOS DeviceSupport
-~/Library/Developer/CoreSimulator/Devices
-/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime
-~/.codex
-~/Library/Caches
-~/Library/Application Support
-/private/tmp
-```
-
-Expand a directory to see versions or devices sorted by disk usage, with full paths and modification times. Simulator rows also show the device name, OS version, UDID, and current state. **Show in Finder** opens the item for further inspection. Unrecognized directories and auxiliary files remain visible as read-only items. The popover scrolls to fit the screen. The **Developer storage** section collapses automatically when the popover closes, so it reopens in its initial state.
-
-Each expanded directory shows a **Size trend** chart directly below its path, above the item count and scan time. The **Week / Month** switch shows the last 7 days / 30 days and defaults to **Week**, with the latest measured size and change between the first and last samples in that range. History starts with complete scans after installing this version; a single scan shows one point, and missing, partial, or failed scans do not become zero-size samples. Lines connect recorded measurements, rather than measuring activity between scans. History reuses existing scans and post-cleanup measurements without adding polling. It is stored locally in `~/Library/Application Support/com.houzhiqiang.CodexUsageStatus/storage-history-v1.json` and survives relaunches. The last 24 hours keep the first and latest measurements per five-minute interval; older history keeps the last measurement per hour, for up to 30 days. No directory contents or child paths are stored in this history. Read/write failures appear in the panel; scans and cleanup remain available. Charts end at the history-load or latest complete-scan time and update with scans, without separate timers; hover over **Size trend** for the cutoff time. Filtering, statistics, and downsampling run in the background. Each curve draws at most 128 actual samples, preserving endpoints and each time bucket’s extrema; the size, change, and Y-axis range still use all retained measurements in the selected range. Collapsing a directory removes its chart, and unrelated state updates reuse prepared charts.
-
-**User caches** allow cleanup only for directories named with a bundle identifier that resolves to an existing app bundle with the same identifier. Processes inside that bundle, including helper apps, block cleanup; unknown ownership or unavailable process information keeps the entry read-only. **Application Support** is always read-only: an app missing from LaunchServices does not prove it was uninstalled, and its data may still be valuable.
-
-**System temporary files** allow only regular files and directories whose entire tree belongs to the current user and was last modified more than three days ago. Symlinks, special files, mount points, directories writable by group/others, recent descendants, and incomplete checks block cleanup. Eligible entries show **Meets cleanup conditions**, rather than a guarantee of safety. Modification time does not prove an item is unused. Exact targets require confirmation and fresh identity/occupancy checks. These checks are snapshots: an app can start or reopen a file afterwards, and path validation plus removal is not atomic against concurrent replacement by another process. No automatic retry is performed.
-
-**iOS simulator runtimes** measure only the specified AssetsV2 directory without adding mounted-volume capacity. Asset metadata supplies version/build labels. The app uses `simctl runtime list --json` to match each package to exactly one system identifier. **Uninstall runtime** is enabled only for a ready, system-deletable runtime whose associated devices are known to be idle. Each runtime requires its own confirmation, listing affected devices and explaining that the runtime must be installed again to use them. Filesystem identity and live state are rechecked before `simctl runtime delete <identifier>`; the app never raw-deletes AssetsV2 data, explicitly shuts down a device, or automatically retries. If tools, permissions, or mapping checks fail, **Manage in Xcode** opens Xcode; continue to Settings → Components. Remaining assets are reported without falling back to filesystem deletion.
-
-**Codex data** shows archived sessions (`archived_sessions`), generated images (`generated_images`), sessions (`sessions`), and other child sizes. Only file metadata is measured; authentication, session, database, and image contents are not read. **View cleanup candidates** on `cache` or `log` loads individual eligible files on demand, with checkboxes, Select all, and Deselect all:
-
-- Cache cleanup includes only immediate regular `.json` files in `cache/codex_apps_server_info`, `cache/codex_apps_tools`, and `cache/remote_plugin_catalog`.
-- Log cleanup includes only regular `.log` files, numbered rotations, and their `.gz` forms under `log`, modified more than seven days ago.
-- Archived sessions, generated images, SQLite/WAL/SHM, authentication, settings, plugins, worktrees, and unknown caches remain protected. Parent directories are retained.
-
-File cleanup confirms exact paths, sizes, and modification times. Caches may regenerate; deleted logs cannot be used for historical troubleshooting. Identity and exact-path `lsof` checks run immediately before deletion. Changes, occupancy, symlinks, or incomplete checks stop that item. Refreshing Codex measurements invalidates loaded candidates and their selection; reload them to continue.
-
-Scanning starts when the popover first opens. Reopening refreshes results older than five minutes; each directory also has a manual refresh button. Directory walks run serially in the background; routine Runtime/Codex/Application Support monitoring and ineligible app caches do not retain recursive identity manifests; evidence is prepared only for a requested runtime uninstall or candidate file list, reducing memory usage. Storage does not follow the Codex refresh schedule. Sizes use MiB/GiB. Permission failures are reported as incomplete scans rather than zero usage, and retained results from failed refreshes are marked stale.
-
-When a scan encounters a permission-denied error, the storage panel offers **Open authorization settings**, **Show this app in Finder**, and **Rescan after authorization**. In System Settings → Privacy & Security → Full Disk Access, add and enable the running app. macOS stores the authorization; the app does not repeatedly open permission dialogs or store an assumed authorization flag. You may need to quit and reopen the app before rescanning. Full Disk Access cannot be granted programmatically and does not override ordinary file permissions or every system protection. Keeping a stable signed app identity avoids unnecessary reauthorization between builds. See [Apple's file-permission guidance](https://developer.apple.com/forums/thread/678819).
-
-Physical-path validation uses POSIX `realpath`, avoiding Foundation's convenience rewriting of `/private/tmp` to `/tmp`. Actual symlink roots, mount points, and target replacements remain blocked; a safety-validation failure does not trigger the permission guide.
-
-Cleanup compares fresh filesystem identities directly with the confirmed manifest and stops at the first mismatch, without constructing a second recursive manifest. Library cleanup (single or batch) scans the category only afterwards to update the display; its category-wide size reduction is intentionally unavailable, while volume free-space changes are still measured. Other categories use a metadata-only pre-cleanup size measurement without rebuilding manifests or querying simulator state. Batch cleanup shares these category measurements across all selected items. Occupancy checks and final live-state checks remain in place; large trees can still take time to verify or delete.
-
-- **Permanently delete** removes only the selected DeviceSupport version. Debugging a matching physical device may later require regenerating or downloading support files.
-- **Delete device** uses `simctl delete <UDID>` for exactly one simulator, permanently removing its installed apps and local data. OS runtimes are unaffected. Recreate the device if needed.
-
-Expand a directory to select multiple eligible items using checkboxes. Each group offers **Select all** and **Deselect all**; selection skips items that cannot be cleaned. DeviceSupport, simulator devices, eligible user caches, temporary items, and Codex candidate files support batch selection; runtime uninstalls are individual. **Delete selected** opens a scrollable confirmation list of all exact targets; canceling preserves the selection. Refreshing automatically deselects changed or missing items. Individual cleanup buttons remain available.
-
-Shutdown simulators and incomplete `Creating` devices explicitly reported as unavailable by `simctl` support both individual and batch deletion. Available devices still being created, booting, running, shutting down, or lacking verified live identity remain ineligible.
-
-Every action requires confirmation of the exact target list. DeviceSupport and simulator-device directory cleanup revalidates paths, directory and descendant identities, and device state, then checks descendant occupancy with `lsof +D`. Codex file cleanup checks the exact file path; runtime uninstalls revalidate the system management identifier and associated device state. Changed targets, running or unknown device states, symbolic-link targets, mount points, and incomplete occupancy checks block cleanup. The app never automatically shuts down a device, retries deletion, or falls back to raw simulator-directory deletion.
-
-Live simulator status and deletion require Xcode and a correctly selected developer directory. Disk measurements remain available when tools or CoreSimulator services are unavailable, but device deletion is disabled.
-
-Batch cleanup runs serially in the background with progress, avoiding competing disk operations. Each affected parent directory is scanned only once before and once after the batch, and available space is measured once per shared volume. During execution, only the current target is revalidated; the list updates when the batch finishes. Failed items are not retried; other confirmed targets proceed independently, and every result is reported.
-
-After cleanup, the app separately reports measured directory usage reduction and the change in available volume space. Closing the popover or expanding/collapsing either directory clears cleanup result messages. In-flight cleanup continues and updates storage measurements, but dismissed results do not reappear. APFS shared blocks, snapshots, and other processes can affect those numbers; measured usage is not guaranteed reclaimable space. Keep any device data you still need.
+If a scan reports permission denied, use the panel's authorization controls to add the running app under System Settings → Privacy & Security → Full Disk Access. You may need to reopen the app before rescanning. This does not override all filesystem protections. Simulator management also requires Xcode and a correctly selected developer directory; use Xcode → Settings → Components if runtime uninstall is unavailable.
 
 ## System monitoring
 
-The popover's System Status section shows startup disk capacity, estimated used memory, whole-machine CPU utilization, and upload/download speeds for the primary network interface. Monitoring works independently of Codex CLI, including when signed out or when quota requests fail. **Developer storage**, **System Status**, and **System Monitoring Settings** appear together in that order; all three sections start collapsed, and clicking a header row expands or collapses it. Each collapses automatically when the popover closes.
+View startup disk capacity, estimated used memory, whole-machine CPU usage (0–100%), and upload/download speeds for the primary network interface. Memory accounting may differ from Activity Monitor; network speeds show one interface, without adding physical and VPN traffic together.
 
-System Monitoring Settings provides separate **menu bar** and **details** switches for each of the five metrics. Changes take effect immediately and persist across launches. By default, all details are enabled and all menu bar metrics are disabled. Enabled menu bar metrics appear in disk, memory, CPU, network order. Upload and download share one column, with upload (↑) above download (↓); enabling only one shows just that row. Choose only the metrics that fit your menu bar.
+In **System Monitoring Settings**, each metric has separate menu bar and details switches. Details are on by default; menu bar metrics are off. Upload (↑) and download (↓) share a menu bar column.
 
-- Choose a **1, 2, or 5 second** system refresh interval (default: **2 seconds**), independently of Codex's 5/10/30/60 minute quota refresh.
-- Disk capacity refreshes every **30 seconds**, reading the startup data volume without scanning directories. External disks and disk I/O speeds are not included.
-- Estimated used memory is anonymous pages minus purgeable pages, plus wired pages and the compressor's resident pages, multiplied by the actual page size. It can differ from Activity Monitor because of accounting and sampling time.
-- CPU utilization uses busy/total tick deltas across samples and is normalized to **0–100%** for the whole machine.
-- Upload and download use byte-counter deltas and actual monotonic elapsed time, displayed in decimal B/s, KB/s, MB/s, or GB/s. The primary IPv4 interface is preferred, with IPv6 as fallback. Physical and VPN interfaces are never added together; the selected interface name appears in details.
-- CPU and network speeds wait for an initial baseline. Interface changes, counter resets, and wake from sleep establish a new baseline; no primary interface is shown as disconnected. A failed metric shows its reason without blocking others.
-- Menu bar metrics continue sampling with the popover closed. Details-only metrics are sampled only while the popover is open. No sampling occurs when all metrics are disabled; settings remain accessible.
+- Refresh every **1, 2, or 5 seconds**, default **2 seconds**. Disk capacity updates every **30 seconds**.
+- Menu bar metrics keep sampling while the panel is closed; details-only metrics sample while it is open. Disabling all metrics stops sampling.
+- CPU and network speeds need an initial sample and reset their baseline after wake or interface changes.
 
-System metrics stay on this Mac: no uploads, history storage, or administrator privileges are required.
-
+Metrics stay on this Mac, with no uploads or saved history. Storage and monitoring sections collapse when the panel closes.
 
 ## Troubleshooting
 
-### “Codex CLI not found”
-
-Run `codex --version` in Terminal first. If Terminal can find it but the app cannot:
-
-1. Open the app popover.
-2. Click the gear in the lower-right corner to expand **Codex CLI** settings.
-3. Click **Choose…**.
-4. Select the actual `codex` executable.
-
-Common locations:
-
-```text
-/opt/homebrew/bin/codex
-/usr/local/bin/codex
-```
-
-### “Sign in with a ChatGPT account first”
-
-Run:
-
-```bash
-codex login
-```
-
-After signing in, return to the app and click the refresh button.
-
-### Nothing appears in the menu bar
-
-- Open Activity Monitor and search for `CodexUsageStatus` to confirm that it is running.
-- If the menu bar is full, quit some other menu bar utilities.
-- Remember that this app does not appear in the Dock.
-
-### Usage does not change
-
-- Click the refresh button in the details popover.
-- Check that the Codex CLI is still signed in.
-- Check whether automatic refresh is set to 1 hour.
-- When existing data becomes stale, the app retries with bounded delays of 1, 2, 5, 10, and 30 seconds.
-
-### Launch at login does not work
-
-Confirm that the app is in the Applications folder, then turn **Launch at login** off and on again. If it still fails, check **System Settings → General → Login Items & Extensions** for a pending approval.
+| Problem | What to check |
+| --- | --- |
+| CLI not found | Run `codex --version`; use the panel's gear to select the executable if needed |
+| Sign-in required | Run `codex login`, then refresh the panel |
+| No menu bar display | Check Activity Monitor for `CodexUsageStatus` and make room in the menu bar |
+| Usage not updating | Refresh manually, check `codex login status` and the refresh interval; connection failures use bounded retries |
+| Launch at login fails | Move the app to Applications, toggle the setting, and check macOS Login Items approval |
 
 ## Build and test
 
-Development requires Xcode 26 because the project uses Swift 6. Regular users do not need to run these commands.
+Requires **Xcode 26 / Swift 6**. The app targets macOS 13+; tests require macOS 14+.
 
 ```bash
-xcodebuild \
-  -project CodexUsageStatus.xcodeproj \
-  -scheme CodexUsageStatus \
-  -destination 'platform=macOS' \
+xcodebuild -project CodexUsageStatus.xcodeproj \
+  -scheme CodexUsageStatus -destination 'platform=macOS' \
   -derivedDataPath /tmp/codex-usage-status-derived \
-  CODE_SIGNING_ALLOWED=NO \
-  build
-
-xcodebuild \
-  -project CodexUsageStatus.xcodeproj \
-  -scheme CodexUsageStatus \
-  -destination 'platform=macOS' \
-  -derivedDataPath /tmp/codex-usage-status-derived \
-  CODE_SIGNING_ALLOWED=NO \
-  test
+  CODE_SIGNING_ALLOWED=NO build
 ```
 
-To run the optional integration test against the locally installed Codex CLI:
+Replace `build` with `test` to run tests. The optional live Codex integration test requires a local CLI login and explicit opt-in:
 
 ```bash
-xcodebuild \
-  -project CodexUsageStatus.xcodeproj \
-  -scheme CodexUsageStatus \
-  -destination 'platform=macOS' \
+xcodebuild -project CodexUsageStatus.xcodeproj \
+  -scheme CodexUsageStatus -destination 'platform=macOS' \
   -derivedDataPath /tmp/codex-usage-status-derived \
   CODE_SIGNING_ALLOWED=NO \
   'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) CODEX_INTEGRATION_TESTS' \
@@ -274,51 +126,22 @@ xcodebuild \
   test
 ```
 
-To use **Launch at login** in a local build, build with **Sign to Run Locally**, move the app into `/Applications`, and then enable the setting.
+For launch-at-login testing, build with **Sign to Run Locally** and place the app in `/Applications`.
 
-## Create a release package
-
-Run:
+## Package a release
 
 ```bash
-./scripts/package-release.sh
-```
-
-With no arguments, the script builds a Universal package for both architectures. To build separately:
-
-```bash
+./scripts/package-release.sh                 # Universal (default)
 ./scripts/package-release.sh --arch arm64    # Apple silicon
 ./scripts/package-release.sh --arch x86_64   # Intel
-./scripts/package-release.sh --arch universal
-./scripts/package-release.sh --help
 ```
 
-Archives use `macos-arm64.zip`, `macos-x86_64.zip`, or `macos-universal.zip` (with matching `.sha256` files) so the three variants can coexist. Single-architecture apps are placed in `dist/arm64/CodexUsageStatus.app` and `dist/x86_64/CodexUsageStatus.app`; the Universal app remains at `dist/CodexUsageStatus.app`. Rebuilding the same variant replaces its existing outputs. Signing and notarization environment variables work with all three variants.
+The script writes the app, ZIP, and `.sha256` checksum under `dist/`. Single-architecture apps use `dist/arm64/` or `dist/x86_64/`; the Universal app uses `dist/CodexUsageStatus.app`. Rebuilding replaces the corresponding outputs.
 
-The default Universal build writes these files to `dist/`:
-
-```text
-CodexUsageStatus.app
-CodexUsageStatus-0.1.0-macos-universal.zip
-CodexUsageStatus-0.1.0-macos-universal.zip.sha256
-```
-
-The default Universal ZIP supports both Apple silicon and Intel Macs. Without a distribution certificate, the script uses an ad-hoc signature. This is suitable for local testing or trusted distribution, but macOS will show a security warning on first launch.
-
-For public distribution, sign with a Developer ID Application certificate and submit the app to Apple for notarization:
+Without a certificate, builds are ad-hoc signed. For public distribution, provide a Developer ID Application certificate and a notarization profile already saved in Keychain with `xcrun notarytool store-credentials`:
 
 ```bash
 DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)" \
 NOTARYTOOL_PROFILE="codex-usage-status-notary" \
 ./scripts/package-release.sh
 ```
-
-`NOTARYTOOL_PROFILE` is the profile name previously stored in Keychain with `xcrun notarytool store-credentials`. After signing and notarization, upload the ZIP and `.sha256` file to the project releases page. Users can then install the app without Xcode.
-
-## Refresh behavior
-
-- Available intervals are 5 minutes, 10 minutes, 30 minutes, and 1 hour; the default is 10 minutes.
-- Reset countdowns in the details table update locally once per minute without making a network request.
-- A manual refresh recalculates the next scheduled refresh.
-- The app reconciles usage when either window resets or after waking from sleep with stale data.
-- `account/rateLimits/updated` notifications merge usage fields locally and do not bypass the selected polling interval.

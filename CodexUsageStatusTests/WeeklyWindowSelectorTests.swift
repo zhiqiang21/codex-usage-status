@@ -193,6 +193,7 @@ final class WeeklyWindowSelectorTests: XCTestCase {
             ),
             fiveHourWindow: UsageWindowSnapshot(remainingPercent: 40, resetsAt: nil),
             resetCreditCount: 2,
+            resetCreditExpirations: [Date(timeIntervalSince1970: 3000)],
             updatedAt: now
         )
         let update = AccountRateLimitsUpdatedNotification(
@@ -215,6 +216,7 @@ final class WeeklyWindowSelectorTests: XCTestCase {
         XCTAssertEqual(merged.weeklyWindow?.remainingPercent, 70)
         XCTAssertEqual(merged.weeklyWindow?.resetsAt, original.weeklyWindow?.resetsAt)
         XCTAssertEqual(merged.resetCreditCount, 2)
+        XCTAssertEqual(merged.resetCreditExpirations, original.resetCreditExpirations)
         XCTAssertEqual(merged.fiveHourWindow, original.fiveHourWindow)
     }
 

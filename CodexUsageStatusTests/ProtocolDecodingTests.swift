@@ -88,6 +88,51 @@ final class ProtocolDecodingTests: XCTestCase {
         XCTAssertEqual(response.rateLimitResetCredits?.availableCount, 4)
     }
 
+    func testDecodesResetCreditExpirationsWithoutDerivingCountFromDetails() throws {
+        let data = Data(
+            """
+            {
+              "rateLimits": {
+                "primary": { "usedPercent": 25, "windowDurationMins": 300 }
+              },
+              "rateLimitResetCredits": {
+                "availableCount": 8,
+                "credits": [
+                  { "status": "available", "expiresAt": 3000 },
+                  { "status": "redeemed", "expiresAt": 1200 },
+                  { "status": "redeeming", "expiresAt": 1300 },
+                  { "status": "unknown", "expiresAt": 1400 },
+                  { "status": "futureStatus", "expiresAt": 1500 },
+                  { "status": "available", "expiresAt": null },
+                  { "status": "available", "expiresAt": 900 },
+                  { "status": "available", "expiresAt": 2000 }
+                ]
+              }
+            }
+            """.utf8
+        )
+        let response = try JSONDecoder().decode(GetAccountRateLimitsResponse.self, from: data)
+        let now = Date(timeIntervalSince1970: 1000)
+        let snapshot = try UsageSnapshotBuilder.makeSnapshot(from: response, now: now)
+
+        XCTAssertEqual(snapshot.resetCreditCount, 8)
+        XCTAssertEqual(snapshot.nextResetCreditExpiration(after: now), Date(timeIntervalSince1970: 2000))
+        XCTAssertEqual(
+            snapshot.nextResetCreditExpiration(after: Date(timeIntervalSince1970: 2000)),
+            Date(timeIntervalSince1970: 3000)
+        )
+        XCTAssertNil(snapshot.nextResetCreditExpiration(after: Date(timeIntervalSince1970: 3000)))
+    }
+
+    func testResetCreditsSupportMissingOrUnavailableDetails() throws {
+        for details in ["", ", \"credits\": null", ", \"credits\": []"] {
+            let data = Data("{\"availableCount\": 2\(details)}".utf8)
+            let summary = try JSONDecoder().decode(RateLimitResetCreditsSummary.self, from: data)
+            XCTAssertEqual(summary.availableCount, 2)
+            XCTAssertTrue(summary.credits?.isEmpty ?? true)
+        }
+    }
+
     func testMissingResetCreditsRemainUnknown() throws {
         let data = Data(
             """

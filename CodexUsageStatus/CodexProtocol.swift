@@ -21,6 +21,12 @@ struct RateLimitWindow: Decodable, Equatable, Sendable {
 
 struct RateLimitResetCreditsSummary: Decodable, Equatable, Sendable {
     let availableCount: Int64
+    var credits: [RateLimitResetCredit]? = nil
+}
+
+struct RateLimitResetCredit: Decodable, Equatable, Sendable {
+    let status: String
+    let expiresAt: Int64?
 }
 
 struct AccountReadResponse: Decodable, Equatable, Sendable {
