@@ -64,10 +64,15 @@ Expand a category to view items sorted by size, inspect paths and modification t
 | Device support — `~/Library/Developer/Xcode/iOS DeviceSupport` | Selected versions; support files may need to be downloaded again for device debugging |
 | Simulator devices — `~/Library/Developer/CoreSimulator/Devices` | Shut-down devices and verified unavailable `Creating` remnants; deletes their apps and local data, not OS runtimes |
 | Simulator runtimes — `/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime` | Individual uninstall through `simctl`, when the runtime is ready, system-deletable, and associated devices are idle |
+| HarmonyOS / DevEco — `~/Library/Huawei`, `~/.ohpm`, `~/.hvigor`, IDE data and app bundle resources | Read-only; SDKs, emulators, dependencies and configuration cannot be deleted directly |
+| Xcode build data — `~/Library/Developer/Xcode/DerivedData` | Read-only; build products and indexes broken down by project |
+| User logs — `~/Library/Logs` | Read-only |
 | Codex data — `~/.codex` | Selected cache JSON files and logs older than 7 days; see below |
 | User caches — `~/Library/Caches` | Verified app cache directories while the owning app and its helpers are not running |
 | Application support — `~/Library/Application Support` | Read-only |
 | Temporary files — `/private/tmp` | Eligible files and directories owned by the current user, with no descendants modified in the last 3 days |
+
+The HarmonyOS category also discovers `Huawei` and `DevEcoStudio*` directories under `~/Library/Application Support`, `~/Library/Caches` and `~/Library/Logs`. Launch Services locates installed DevEco Studio apps so their bundled SDKs, tools, plugins and other resources under `Contents` can be measured. Scans read metadata only, without reading configuration or credentials, following symlinks or crossing mount points. Missing standard directories do not prove the tools are absent. Custom SDK, emulator and cache paths and project-local build directories are not searched automatically. Manage SDKs and emulators in DevEco Studio. This category may overlap with caches, application support and logs; do not add their totals together.
 
 For Codex data, **View cleanup candidates** loads files under `cache` or `log`. Cache cleanup is limited to immediate `.json` files in `cache/codex_apps_server_info`, `cache/codex_apps_tools`, and `cache/remote_plugin_catalog`. Log cleanup covers `.log` files, numbered rotations, and their `.gz` forms older than 7 days. Sessions, generated images, databases, authentication, settings, plugins, worktrees, and unknown caches are protected. Scans read metadata, not file contents. Caches may regenerate; deleted logs are no longer available for troubleshooting.
 

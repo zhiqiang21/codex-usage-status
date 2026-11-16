@@ -137,7 +137,66 @@ struct DeveloperStorageService: DeveloperStorageProviding {
     }
 
     private func scanSynchronously(_ kind: DeveloperStorageKind, measurementOnly: Bool = false) -> DeveloperStorageSnapshot {
-        let root = rootURL(for: kind)
+        if kind == .harmonyData { return scanHarmonyData() }
+        var seen = Set<String>()
+        return scanDirectory(kind, root: rootURL(for: kind), measurementOnly: measurementOnly, seen: &seen)
+    }
+
+    private func directoryChildren(_ root: URL) throws -> (StorageNodeIdentity, [URL]) {
+        let node = try requireDirectory(root)
+        // Preserve POSIX spelling; Foundation may rewrite /var to /private/var.
+        let children = try FileManager.default.contentsOfDirectory(atPath: root.path)
+            .sorted().map { root.appendingPathComponent($0) }
+        return (node, children)
+    }
+
+    private func scanHarmonyData() -> DeveloperStorageSnapshot {
+        var roots = ["Library/Huawei", ".ohpm", ".hvigor"].map { home.appendingPathComponent($0) }
+        var issues: [String] = []
+        var denied: [String] = []
+        for relativePath in ["Library/Application Support", "Library/Caches", "Library/Logs"] {
+            let parent = home.appendingPathComponent(relativePath)
+            do {
+                let (_, children) = try directoryChildren(parent)
+                roots += children.filter {
+                    $0.lastPathComponent == "Huawei" || $0.lastPathComponent.hasPrefix("DevEcoStudio")
+                }
+            } catch {
+                let errorCode = error as NSError
+                if errorCode.domain == NSPOSIXErrorDomain && errorCode.code == Int(ENOENT) { continue }
+                issues.append(L10n.tr("%@: %@", StoragePathLabel.string(parent.path), error.localizedDescription))
+                if StorageFileAccess.isPermissionDenied(error) { denied.append(parent.path) }
+            }
+        }
+        // Current DevEco releases bundle the SDK. Launch Services also finds
+        // renamed/moved installations without searching the user's projects.
+        roots += appResolver.installedAppURLs(forBundleIdentifier: "com.huawei.devecostudio.ds")
+            .map { $0.appendingPathComponent("Contents") }
+        var scannedRoots: [String] = []
+        var seen = Set<String>()
+        var entries: [DeveloperStorageEntry] = []
+        var bytes: Int64?
+        var allMissing = true
+        for root in roots.sorted(by: { $0.path < $1.path }) {
+            // A registered IDE may itself live below a discovered Huawei root.
+            // Scan its contents once rather than exposing parent/child totals.
+            guard !scannedRoots.contains(where: { root.path == $0 || root.path.hasPrefix($0 + "/") }) else { continue }
+            scannedRoots.append(root.path)
+            let snapshot = scanDirectory(.harmonyData, root: root, measurementOnly: false, seen: &seen)
+            allMissing = allMissing && snapshot.isMissing
+            if let size = snapshot.allocatedBytes { bytes = (bytes ?? 0) + size }
+            entries += snapshot.entries
+            issues += snapshot.issues
+            denied += snapshot.permissionDeniedPaths
+        }
+        return DeveloperStorageSnapshot(kind: .harmonyData, path: DeveloperStorageKind.harmonyData.displayPath,
+            entries: entries.sorted { $0.measuredBytes == $1.measuredBytes ? $0.path < $1.path : $0.measuredBytes > $1.measuredBytes },
+            allocatedBytes: bytes, scannedAt: now(), issues: issues, isMissing: allMissing && issues.isEmpty,
+            notice: nil, permissionDeniedPaths: denied)
+    }
+
+    private func scanDirectory(_ kind: DeveloperStorageKind, root: URL, measurementOnly: Bool,
+                               seen: inout Set<String>) -> DeveloperStorageSnapshot {
         var issues: [String] = []
         var entries: [DeveloperStorageEntry] = []
         var bytes: Int64?
@@ -145,15 +204,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
         var notice: String?
         var permissionDeniedPaths: [String] = []
         do {
-            let rootIdentity = try identity(root)
-            guard rootIdentity.isDirectory, !rootIdentity.isSymbolicLink, !rootIdentity.isMountPoint,
-                  StorageCanonicalPath.resolve(root) == root.path else {
-                throw DeveloperStorageError.unsafeTarget
-            }
-            // Preserve the parent's URL spelling. contentsOfDirectory(at:) may
-            // return /private/var children for a /var parent on macOS.
-            let children = try FileManager.default.contentsOfDirectory(atPath: root.path)
-                .sorted().map { root.appendingPathComponent($0) }
+            let (rootIdentity, children) = try directoryChildren(root)
             var devices: [String: SimulatorStorageDevice] = [:]
             var runtimes: [StorageRuntimeInfo] = []
             if kind == .simulators && !measurementOnly {
@@ -166,9 +217,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
                     devices = try simulatorDevices(root: rootURL(for: .simulators))
                 } catch { notice = L10n.tr("Unable to verify runtimes. Uninstall disabled; manage them in Xcode. %@", "\(error.localizedDescription)") }
             }
-            var seen = Set<String>()
-            bytes = rootIdentity.allocatedBytes
-            seen.insert(inodeKey(rootIdentity))
+            bytes = seen.insert(inodeKey(rootIdentity)).inserted ? rootIdentity.allocatedBytes : 0
             // One process listing per scan powers the running-app heuristics.
             var processPaths: Set<String>?
             if kind == .userCaches && !measurementOnly {
@@ -227,6 +276,8 @@ struct DeveloperStorageService: DeveloperStorageProviding {
                     } else {
                         reason = L10n.tr("The target is a symlink, contains mount points, or could not be fully verified. Read-only")
                     }
+                } else if kind.isReadOnly {
+                    reason = L10n.tr("This item does not support cleanup.")
                 } else if manifest?.isSafeDirectory != true {
                     reason = L10n.tr("The directory could not be fully verified, is a symlink, or contains mount points. Read-only")
                 } else if kind == .deviceSupport {
@@ -248,7 +299,7 @@ struct DeveloperStorageService: DeveloperStorageProviding {
         } catch {
             let nsError = error as NSError
             missing = nsError.domain == NSPOSIXErrorDomain && nsError.code == Int(ENOENT)
-            if !missing { issues.append(error.localizedDescription) }
+            if !missing { issues.append(L10n.tr("%@: %@", StoragePathLabel.string(root.path), error.localizedDescription)) }
             if StorageFileAccess.isPermissionDenied(error) { permissionDeniedPaths.append(root.path) }
         }
         return DeveloperStorageSnapshot(

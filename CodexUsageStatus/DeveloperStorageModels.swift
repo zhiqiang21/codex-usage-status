@@ -30,9 +30,12 @@ enum DeveloperStorageKind: String, CaseIterable, Identifiable, Sendable {
     case deviceSupport
     case simulators
     case simulatorRuntimes
+    case harmonyData
+    case derivedData
     case codexData
     case userCaches
     case appSupport
+    case userLogs
     case systemTmp
 
     var id: String { rawValue }
@@ -41,9 +44,12 @@ enum DeveloperStorageKind: String, CaseIterable, Identifiable, Sendable {
         case .deviceSupport: L10n.tr("Device Support")
         case .simulators: L10n.tr("Simulator Devices")
         case .simulatorRuntimes: L10n.tr("iOS Simulator Runtimes")
+        case .harmonyData: L10n.tr("HarmonyOS / DevEco")
+        case .derivedData: L10n.tr("Xcode DerivedData")
         case .codexData: L10n.tr("Codex Data")
         case .userCaches: L10n.tr("User Caches")
         case .appSupport: L10n.tr("Application Support")
+        case .userLogs: L10n.tr("User Logs")
         case .systemTmp: L10n.tr("System Temporary Files")
         }
     }
@@ -52,9 +58,12 @@ enum DeveloperStorageKind: String, CaseIterable, Identifiable, Sendable {
         case .deviceSupport: "Library/Developer/Xcode/iOS DeviceSupport"
         case .simulators: "Library/Developer/CoreSimulator/Devices"
         case .simulatorRuntimes: "System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime"
+        case .harmonyData: "Library/Huawei"
+        case .derivedData: "Library/Developer/Xcode/DerivedData"
         case .codexData: ".codex"
         case .userCaches: "Library/Caches"
         case .appSupport: "Library/Application Support"
+        case .userLogs: "Library/Logs"
         case .systemTmp: "private/tmp"
         }
     }
@@ -67,6 +76,7 @@ enum DeveloperStorageKind: String, CaseIterable, Identifiable, Sendable {
     }
     var displayPath: String {
         switch self {
+        case .harmonyData: L10n.tr("~/Library/Huawei, ~/.ohpm, ~/.hvigor, DevEco Studio data and bundled SDKs")
         case .simulatorRuntimes: "/" + relativePath
         case .systemTmp: "/" + relativePath
         default: "~/" + relativePath
@@ -82,12 +92,22 @@ enum DeveloperStorageKind: String, CaseIterable, Identifiable, Sendable {
     }
     var monitoringDescription: String? {
         switch self {
+        case .harmonyData: L10n.tr("Read-only scan of standard HarmonyOS and DevEco locations. SDKs and emulators must be managed in DevEco Studio. Custom paths are not searched. Cache, support and log entries also appear in their respective categories; do not add these totals together.")
+        case .derivedData: L10n.tr("Xcode build products and indexes. Read-only; rebuilding may regenerate this data.")
+        case .userLogs: L10n.tr("Application and developer logs. Read-only; logs may be needed for troubleshooting.")
         case .simulatorRuntimes: L10n.tr("Uninstall runtimes individually through system tools. Runtimes in use cannot be uninstalled.")
         case .codexData: L10n.tr("Only allowlisted caches and logs older than 7 days can be cleaned. Sessions and images are read-only.")
         case .userCaches: L10n.tr("Only caches belonging to identified, inactive apps can be cleaned. Caches with unknown owners are read-only.")
         case .appSupport: L10n.tr("Application support may contain settings and user records. All entries are read-only.")
         case .systemTmp: L10n.tr("Only regular files and directories whose entire tree belongs to the current user and has not changed for over 3 days can be cleaned. Modification times do not prove they are unused.")
         default: nil
+        }
+    }
+
+    var isReadOnly: Bool {
+        switch self {
+        case .harmonyData, .derivedData, .userLogs, .appSupport: true
+        default: false
         }
     }
 
@@ -286,7 +306,7 @@ struct DeveloperStorageEntry: Identifiable, Equatable, Sendable {
         return name
     }
     var canClean: Bool {
-        guard let cleanupAction, cleanupAction.kind == kind, cleanupUnavailableReason == nil else { return false }
+        guard !kind.isReadOnly, let cleanupAction, cleanupAction.kind == kind, cleanupUnavailableReason == nil else { return false }
         switch cleanupAction {
         case .directory, .simulatorDevice: return manifest?.isSafeDirectory == true
         case .codexFile: return manifest?.isSafeFile == true

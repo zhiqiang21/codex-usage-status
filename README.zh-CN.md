@@ -64,10 +64,15 @@ codex login status
 | 真机支持文件 — `~/Library/Developer/Xcode/iOS DeviceSupport` | 选中的版本；后续调试对应真机时可能需要重新下载 |
 | 模拟器设备 — `~/Library/Developer/CoreSimulator/Devices` | 已关闭设备，以及经核实不可用的 `Creating` 残留；删除设备应用和本地数据，不删除系统运行时 |
 | 模拟器运行时 — `/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime` | 通过 `simctl` 逐个卸载；须状态就绪、系统允许删除且关联设备空闲 |
+| 鸿蒙 / DevEco — `~/Library/Huawei`、`~/.ohpm`、`~/.hvigor`、IDE 数据和应用包资源 | 只读；SDK、模拟器、依赖及配置不会直接删除 |
+| Xcode 构建数据 — `~/Library/Developer/Xcode/DerivedData` | 只读，按项目显示构建产物和索引占用 |
+| 用户日志 — `~/Library/Logs` | 只读 |
 | Codex 数据 — `~/.codex` | 指定缓存 JSON 文件和超过 7 天的日志，详见下文 |
 | 用户缓存 — `~/Library/Caches` | 归属已核实，且所属应用和辅助进程均未运行的缓存目录 |
 | 应用支持数据 — `~/Library/Application Support` | 只读 |
 | 系统临时文件 — `/private/tmp` | 属于当前用户、整棵目录树超过 3 天未修改且通过检查的文件和目录 |
+
+鸿蒙分类还会识别 `~/Library/Application Support`、`~/Library/Caches`、`~/Library/Logs` 下的 `Huawei` 和 `DevEcoStudio*` 目录，并通过 Launch Services 定位已安装的 DevEco Studio，展示应用包 `Contents` 下的内置 SDK、工具链、插件等资源占用。仅统计元信息，不读取配置或凭据内容，不跟随符号链接或跨越挂载点。标准目录缺失不代表没有安装；自定义 SDK、模拟器、缓存路径和项目内的构建目录不自动搜索。SDK 和模拟器请在 DevEco Studio 中管理。鸿蒙分类与缓存、支持数据、日志分类可能重叠，请勿将分类总量相加。
 
 Codex 的 `cache`、`log` 条目可通过“查看可清理项”加载文件。缓存仅限 `cache/codex_apps_server_info`、`cache/codex_apps_tools`、`cache/remote_plugin_catalog` 下直属的 `.json` 文件；日志仅限超过 7 天的 `.log`、数字编号轮转日志及对应 `.gz` 文件。会话、生成图片、数据库、认证、配置、插件、工作树和未知缓存不开放清理。扫描只读取元信息，不读取文件内容。缓存可能重新生成，日志删除后无法用于历史排障。
 

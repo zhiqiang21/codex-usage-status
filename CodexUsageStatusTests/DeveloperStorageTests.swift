@@ -82,6 +82,151 @@ final class DeveloperStorageTests: XCTestCase {
         XCTAssertFalse(DeveloperStorageKind.simulatorRuntimes.showsBatchSelection)
     }
 
+    func testHarmonyScanIncludesStandardIDEAndBundledResourcesWithoutRunningCommands() async throws {
+        let home = try temporaryHome()
+        let app = home.appendingPathComponent("Applications/Renamed IDE.app")
+        let paths = [
+            "Library/Huawei/Sdk/20", "Library/Huawei/Emulator/deployed/device",
+            ".ohpm/cache", ".hvigor/wrapper",
+            "Library/Application Support/Huawei/DevEcoStudio6.0",
+            "Library/Caches/Huawei/DevEcoStudio6.0",
+            "Library/Logs/Huawei/DevEcoStudio6.0",
+            "Library/Application Support/DevEcoStudio5.0/plugins",
+            "Library/Caches/DevEcoStudio5.0/index",
+            "Library/Logs/DevEcoStudio5.0/log",
+            "Applications/Renamed IDE.app/Contents/sdk/default",
+            "Applications/Renamed IDE.app/Contents/tools/ohpm"
+        ]
+        for (index, path) in paths.enumerated() {
+            let directory = home.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Data(repeating: 42, count: index == 10 ? 1_048_576 : 8_192)
+                .write(to: directory.appendingPathComponent("data"))
+        }
+        // Configuration must only be measured, even when its content is unreadable.
+        let config = home.appendingPathComponent(".ohpm/config")
+        try Data("private test configuration".utf8).write(to: config)
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: config.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: config.path) }
+        let unrelated = home.appendingPathComponent("Library/Caches/UnrelatedApp")
+        try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: true)
+        let commands = StorageTestCommands()
+        let service = DeveloperStorageService(home: home, commands: commands,
+            appResolver: StorageStubAppResolver(apps: ["com.huawei.devecostudio.ds": [app, app]]))
+        let snapshot = await service.scan(.harmonyData)
+        XCTAssertTrue(snapshot.isComplete, snapshot.issues.joined(separator: "\n"))
+        XCTAssertEqual(snapshot.entries.count, 13)
+        XCTAssertEqual(snapshot.entries.first?.path, app.appendingPathComponent("Contents/sdk").path)
+        XCTAssertTrue(snapshot.entries.contains { $0.path == config.path })
+        XCTAssertFalse(snapshot.entries.contains { $0.path == unrelated.path })
+        XCTAssertEqual(Set(snapshot.entries.map(\.path)).count, snapshot.entries.count)
+        XCTAssertTrue(snapshot.entries.allSatisfy { !$0.canClean && !$0.allowsSelection && $0.manifest == nil })
+        XCTAssertTrue(commands.invocations.isEmpty)
+    }
+
+    func testHarmonyMissingEmptyAndPartialScansAreDistinct() async throws {
+        let home = try temporaryHome()
+        let service = DeveloperStorageService(home: home, commands: StorageTestCommands(),
+            appResolver: StorageStubAppResolver(apps: [:]))
+        let missing = await service.scan(.harmonyData)
+        XCTAssertTrue(missing.isMissing)
+        XCTAssertNil(missing.allocatedBytes)
+        let ohpm = home.appendingPathComponent(".ohpm")
+        try FileManager.default.createDirectory(at: ohpm, withIntermediateDirectories: true)
+        let empty = await service.scan(.harmonyData)
+        XCTAssertTrue(empty.isComplete)
+        XCTAssertTrue(empty.entries.isEmpty)
+        XCTAssertNotNil(empty.allocatedBytes)
+        let invalid = home.appendingPathComponent(".hvigor")
+        try Data("not a directory".utf8).write(to: invalid)
+        let partial = await service.scan(.harmonyData)
+        XCTAssertFalse(partial.isMissing)
+        XCTAssertFalse(partial.isComplete)
+        XCTAssertNotNil(partial.allocatedBytes)
+        XCTAssertTrue(partial.issues.contains { $0.contains(invalid.path) })
+    }
+
+    func testHarmonyDiscoveryRejectsLinkedRootsAndDoesNotTraverseLinkedChildren() async throws {
+        let home = try temporaryHome()
+        let outside = home.appendingPathComponent("outside")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try Data(repeating: 42, count: 1_048_576).write(to: outside.appendingPathComponent("keep"))
+        let ohpm = home.appendingPathComponent(".ohpm")
+        try FileManager.default.createDirectory(at: ohpm, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: ohpm.appendingPathComponent("cache"), withDestinationURL: outside)
+        let linkedRoot = home.appendingPathComponent(".hvigor")
+        try FileManager.default.createSymbolicLink(at: linkedRoot, withDestinationURL: outside)
+        let linkedParent = home.appendingPathComponent("Library/Caches")
+        try FileManager.default.createDirectory(at: linkedParent.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: linkedParent, withDestinationURL: outside)
+        let snapshot = await DeveloperStorageService(home: home, commands: StorageTestCommands(),
+            appResolver: StorageStubAppResolver(apps: [:])).scan(.harmonyData)
+        XCTAssertFalse(snapshot.isComplete)
+        XCTAssertEqual(snapshot.entries.map(\.path), [ohpm.appendingPathComponent("cache").path])
+        XCTAssertTrue(snapshot.issues.contains { $0.contains(linkedRoot.path) })
+        XCTAssertTrue(snapshot.issues.contains { $0.contains(linkedParent.path) })
+        XCTAssertLessThan(try XCTUnwrap(snapshot.allocatedBytes), 1_048_576)
+    }
+
+    func testHarmonyTotalCountsHardLinkedFilesAcrossRootsOnce() async throws {
+        let home = try temporaryHome()
+        let first = home.appendingPathComponent(".ohpm/cache")
+        let second = home.appendingPathComponent(".hvigor/cache")
+        for directory in [first, second] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let file = first.appendingPathComponent("data")
+        try Data(repeating: 42, count: 1_048_576).write(to: file)
+        try FileManager.default.linkItem(at: file, to: second.appendingPathComponent("data"))
+        let snapshot = await DeveloperStorageService(home: home, commands: StorageTestCommands(),
+            appResolver: StorageStubAppResolver(apps: [:])).scan(.harmonyData)
+        XCTAssertTrue(snapshot.isComplete)
+        XCTAssertEqual(snapshot.entries.count, 2)
+        XCTAssertLessThan(try XCTUnwrap(snapshot.allocatedBytes), snapshot.entries.reduce(0) { $0 + $1.measuredBytes })
+    }
+
+    func testHarmonyScanDoesNotRepeatAnIDEBelowAnotherDiscoveryRoot() async throws {
+        let home = try temporaryHome()
+        let app = home.appendingPathComponent("Library/Huawei/DevEco-Studio.app")
+        let sdk = app.appendingPathComponent("Contents/sdk")
+        try FileManager.default.createDirectory(at: sdk, withIntermediateDirectories: true)
+        try Data(repeating: 42, count: 8_192).write(to: sdk.appendingPathComponent("data"))
+        let snapshot = await DeveloperStorageService(home: home, commands: StorageTestCommands(),
+            appResolver: StorageStubAppResolver(apps: ["com.huawei.devecostudio.ds": [app]])).scan(.harmonyData)
+        XCTAssertTrue(snapshot.isComplete)
+        XCTAssertEqual(snapshot.entries.map(\.path), [app.path])
+    }
+
+    func testAdditionalMonitoringDirectoriesRemainReadOnly() async throws {
+        let home = try temporaryHome()
+        let commands = StorageTestCommands()
+        let service = DeveloperStorageService(home: home, commands: commands)
+        for kind in [DeveloperStorageKind.derivedData, .userLogs] {
+            let target = kind.root(in: home).appendingPathComponent("example")
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+            try Data(repeating: 42, count: 8_192).write(to: target.appendingPathComponent("data"))
+            let snapshot = await service.scan(kind)
+            XCTAssertTrue(snapshot.isComplete)
+            let entry = try XCTUnwrap(snapshot.entries.first)
+            XCTAssertEqual(entry.path, target.path)
+            XCTAssertFalse(entry.canClean)
+            XCTAssertNil(entry.manifest)
+            XCTAssertFalse(kind.showsBatchSelection)
+        }
+        _ = try makeVersion(home)
+        let support = await service.scan(.deviceSupport)
+        let source = try XCTUnwrap(support.entries.first)
+        for kind in [DeveloperStorageKind.harmonyData, .derivedData, .userLogs] {
+            let forged = DeveloperStorageEntry(kind: kind, path: source.path, name: source.name,
+                manifest: source.manifest, measuredBytes: source.measuredBytes, modifiedAt: source.modifiedAt,
+                issues: [], device: nil, cleanupUnavailableReason: nil, cleanupAction: .libraryDirectory(kind))
+            XCTAssertFalse(forged.canClean)
+            do { _ = try await service.clean(forged); XCTFail("Read-only data cannot be cleaned") }
+            catch { XCTAssertEqual(error.localizedDescription, DeveloperStorageError.unsafeTarget.localizedDescription) }
+        }
+        XCTAssertTrue(commands.invocations.isEmpty)
+    }
+
     func testCodexMonitoringShowsBreakdownWithoutReadingFileContentsOrKeepingManifests() async throws {
         let home = try temporaryHome()
         let root = DeveloperStorageKind.codexData.root(in: home)
