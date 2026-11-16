@@ -55,10 +55,14 @@ final class UserSettings: ObservableObject {
         static let showsResetCreditsInMenuBar = "showsResetCreditsInMenuBar"
         static let refreshInterval = "refreshInterval"
         static let executablePath = "codexExecutablePath"
+        static let appLanguage = "appLanguage"
+        static let appleLanguages = "AppleLanguages"
     }
 
     private let defaults: UserDefaults
+    private let initialAppLanguage: AppLanguage
 
+    @Published private(set) var appLanguage: AppLanguage
     @Published private(set) var menuBarDisplayMode: MenuBarDisplayMode
     @Published private(set) var showsResetCreditsInMenuBar: Bool
     @Published private(set) var refreshInterval: RefreshInterval
@@ -67,6 +71,10 @@ final class UserSettings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        let language = defaults.string(forKey: Key.appLanguage)
+            .flatMap(AppLanguage.init(rawValue:)) ?? .system
+        initialAppLanguage = language
+        appLanguage = language
         systemMonitor = SystemMonitorSettings(defaults: defaults)
         menuBarDisplayMode = defaults.string(forKey: Key.menuBarDisplayMode)
             .flatMap(MenuBarDisplayMode.init(rawValue:)) ?? .both
@@ -76,6 +84,23 @@ final class UserSettings: ObservableObject {
             rawValue: defaults.integer(forKey: Key.refreshInterval)
         ) ?? .tenMinutes
         executablePath = defaults.string(forKey: Key.executablePath) ?? ""
+    }
+
+    var languageChangeRequiresRestart: Bool { appLanguage != initialAppLanguage }
+
+    func setAppLanguage(_ language: AppLanguage) {
+        guard appLanguage != language else { return }
+        if let preferredLanguages = language.preferredLanguages {
+            defaults.set(language.rawValue, forKey: Key.appLanguage)
+            // Foundation and AppKit resolve their language at process startup.
+            // Saving Apple's per-app preference keeps all surfaces consistent
+            // after reopening, including strings produced by background services.
+            defaults.set(preferredLanguages, forKey: Key.appleLanguages)
+        } else {
+            defaults.removeObject(forKey: Key.appLanguage)
+            defaults.removeObject(forKey: Key.appleLanguages)
+        }
+        appLanguage = language
     }
 
     func setSystemMetric(_ metric: SystemMetric, at location: SystemMetricLocation, visible: Bool) {

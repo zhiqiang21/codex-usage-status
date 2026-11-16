@@ -36,7 +36,7 @@ Development builds use ad-hoc signing and may trigger macOS security warnings.
 
 ## Usage
 
-The app supports **English and Simplified Chinese** and follows macOS language preferences, falling back to English for unsupported languages. To override the language for this app, use System Settings → General → Language & Region → Applications, then reopen the app. Chinese labels below show their Simplified Chinese equivalents.
+The app supports **English and Simplified Chinese**. Use **Language** in the panel settings to choose **System Default**, **简体中文**, or **English**. The selection is saved and takes effect after quitting and reopening the app; a reminder appears while a change is pending. System Default follows macOS language preferences and falls back to English for unsupported languages. Chinese labels below show their Simplified Chinese equivalents.
 
 | Icon | Top row | Bottom row |
 | --- | --- | --- |

@@ -288,3 +288,7 @@
 "Read-only scan of standard HarmonyOS and DevEco locations. SDKs and emulators must be managed in DevEco Studio. Custom paths are not searched. Cache, support and log entries also appear in their respective categories; do not add these totals together." = "Read-only scan of standard HarmonyOS and DevEco locations. SDKs and emulators must be managed in DevEco Studio. Custom paths are not searched. Cache, support and log entries also appear in their respective categories; do not add these totals together.";
 "Xcode build products and indexes. Read-only; rebuilding may regenerate this data." = "Xcode build products and indexes. Read-only; rebuilding may regenerate this data.";
 "Application and developer logs. Read-only; logs may be needed for troubleshooting." = "Application and developer logs. Read-only; logs may be needed for troubleshooting.";
+
+"Language" = "Language";
+"System Default" = "System Default";
+"Reopen the app to apply the language change." = "Reopen the app to apply the language change.";

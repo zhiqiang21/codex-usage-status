@@ -288,3 +288,7 @@
 "Read-only scan of standard HarmonyOS and DevEco locations. SDKs and emulators must be managed in DevEco Studio. Custom paths are not searched. Cache, support and log entries also appear in their respective categories; do not add these totals together." = "只读扫描鸿蒙与 DevEco 常见目录。SDK 和模拟器请在 DevEco Studio 中管理，不自动搜索自定义路径。缓存、支持数据和日志也会出现在对应分类中，请勿将这些分类的占用相加。";
 "Xcode build products and indexes. Read-only; rebuilding may regenerate this data." = "Xcode 构建产物和索引，仅供查看；重新构建可能再次生成这些数据。";
 "Application and developer logs. Read-only; logs may be needed for troubleshooting." = "应用与开发工具日志，仅供查看；排查问题时可能需要这些日志。";
+
+"Language" = "语言";
+"System Default" = "跟随系统";
+"Reopen the app to apply the language change." = "重新打开应用后，语言设置生效。";

@@ -3,6 +3,87 @@ import XCTest
 @testable import CodexUsageStatus
 
 final class LocalizationTests: XCTestCase {
+    @MainActor
+    private func defaults() throws -> (name: String, values: UserDefaults) {
+        let name = "CodexUsageStatusTests.Localization.\(UUID().uuidString)"
+        let values = try XCTUnwrap(UserDefaults(suiteName: name))
+        addTeardownBlock { values.removePersistentDomain(forName: name) }
+        return (name, values)
+    }
+
+    @MainActor
+    func testLanguageDefaultsToSystemWithoutChangingExistingPreferences() throws {
+        let defaults = try defaults()
+        // Preserve a language selected outside the app, until the user chooses
+        // an explicit override in our picker.
+        defaults.values.set(["en-GB"], forKey: "AppleLanguages")
+        let settings = UserSettings(defaults: defaults.values)
+        XCTAssertEqual(settings.appLanguage, .system)
+        XCTAssertFalse(settings.languageChangeRequiresRestart)
+        XCTAssertEqual(defaults.values.persistentDomain(forName: defaults.name)?["AppleLanguages"] as? [String], ["en-GB"])
+        XCTAssertEqual(AppLanguage.simplifiedChinese.title, "简体中文")
+        XCTAssertEqual(AppLanguage.english.title, "English")
+    }
+
+    @MainActor
+    func testLanguageSelectionPersistsNativePreferenceForNextLaunch() throws {
+        let defaults = try defaults()
+        let settings = UserSettings(defaults: defaults.values)
+        let originalMonitor = settings.systemMonitor
+        for language in [AppLanguage.simplifiedChinese, .english] {
+            settings.setAppLanguage(language)
+            XCTAssertEqual(settings.appLanguage, language)
+            XCTAssertTrue(settings.languageChangeRequiresRestart)
+            XCTAssertEqual(defaults.values.string(forKey: "appLanguage"), language.rawValue)
+            // -testLanguage sets a higher-priority argument-domain value.
+            // Check the persisted preference that will apply on the next launch.
+            XCTAssertEqual(defaults.values.persistentDomain(forName: defaults.name)?["AppleLanguages"] as? [String], [language.rawValue])
+            let restored = UserSettings(defaults: defaults.values)
+            XCTAssertEqual(restored.appLanguage, language)
+            XCTAssertFalse(restored.languageChangeRequiresRestart)
+            XCTAssertEqual(restored.systemMonitor, originalMonitor)
+            XCTAssertEqual(restored.refreshInterval, .tenMinutes)
+            XCTAssertEqual(restored.menuBarDisplayMode, .both)
+        }
+    }
+
+    @MainActor
+    func testReturningToSystemRemovesOnlyLanguageOverrides() throws {
+        let defaults = try defaults()
+        let settings = UserSettings(defaults: defaults.values)
+        settings.setRefreshInterval(.thirtyMinutes)
+        settings.setAppLanguage(.english)
+        settings.setAppLanguage(.system)
+        XCTAssertFalse(settings.languageChangeRequiresRestart)
+        let domain = try XCTUnwrap(defaults.values.persistentDomain(forName: defaults.name))
+        XCTAssertNil(domain["appLanguage"])
+        XCTAssertNil(domain["AppleLanguages"])
+        let restored = UserSettings(defaults: defaults.values)
+        XCTAssertEqual(restored.appLanguage, .system)
+        XCTAssertEqual(restored.refreshInterval, .thirtyMinutes)
+    }
+
+    @MainActor
+    func testRestartNoticeTracksChangesRelativeToLaunchSelection() throws {
+        let defaults = try defaults()
+        defaults.values.set(AppLanguage.english.rawValue, forKey: "appLanguage")
+        defaults.values.set(["en"], forKey: "AppleLanguages")
+        let settings = UserSettings(defaults: defaults.values)
+        settings.setAppLanguage(.simplifiedChinese)
+        XCTAssertTrue(settings.languageChangeRequiresRestart)
+        settings.setAppLanguage(.english)
+        XCTAssertFalse(settings.languageChangeRequiresRestart)
+        settings.setAppLanguage(.system)
+        XCTAssertTrue(settings.languageChangeRequiresRestart)
+    }
+
+    @MainActor
+    func testUnsupportedSavedLanguageFallsBackToSystem() throws {
+        let defaults = try defaults()
+        defaults.values.set("unsupported", forKey: "appLanguage")
+        XCTAssertEqual(UserSettings(defaults: defaults.values).appLanguage, .system)
+    }
+
     private func bundle(_ language: String) throws -> Bundle {
         let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"))
         return try XCTUnwrap(Bundle(path: path))

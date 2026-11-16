@@ -512,7 +512,7 @@ struct UsagePopoverView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .controlSize(.small)
-            .frame(width: 100)
+            .frame(width: 100, alignment: .trailing)
         }
         .font(.system(size: 13))
         .frame(minHeight: 34)
@@ -520,6 +520,8 @@ struct UsagePopoverView: View {
 
     private var appSettings: some View {
         VStack(alignment: .leading, spacing: 0) {
+            languageSettings
+
             HStack {
                 Text(L10n.tr("Launch at login"))
                 Spacer()
@@ -559,6 +561,36 @@ struct UsagePopoverView: View {
         }
         .font(.system(size: 13))
         .padding(.bottom, 6)
+    }
+
+    private var languageSettings: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(L10n.tr("Language"))
+                Spacer()
+                Picker(L10n.tr("Language"), selection: Binding(
+                    get: { settings.appLanguage },
+                    set: { settings.setAppLanguage($0) }
+                )) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.title).tag(language)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(width: 160, alignment: .trailing)
+            }
+            .frame(minHeight: 34)
+
+            if settings.languageChangeRequiresRestart {
+                Text(L10n.tr("Reopen the app to apply the language change."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 6)
+            }
+        }
     }
 
     private var connectionSettings: some View {
